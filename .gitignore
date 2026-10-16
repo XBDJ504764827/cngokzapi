@@ -16,6 +16,7 @@ bun.lockb
 # 环境与密钥
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 
