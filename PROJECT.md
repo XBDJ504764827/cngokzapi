@@ -6,23 +6,25 @@
 
 ## 1. 项目整体目标
 
-为中国 GOKZ 社区（CNGOKZ）提供后端 API + 官方网站。
+为中国 GOKZ 社区（CNGOKZ）提供后端 API + 官方网站。正式技术栈：
 
-- 第一阶段（网站）：用 Rust 承载网站，要求与 `~/cngokz-web` 前端示例**一模一样**
-  （视觉、布局、配色、交互、页面结构），先做到像素级复刻，再接后端数据。
-- 第二阶段（后端）：提供 RESTful API（玩家、地图、记录、排行、服务器、Steam 登录、管理功能）。
-- 第三阶段（联调）：网站从模拟数据切换到真实 API，上线管理面板、搜索、分页、缓存。
+- 前端：Vue 3 + TypeScript + Vite，组件库 Naive UI（主题覆写为墨绿主色）；
+- 后端：Rust + Axum 模块化单体；
+- 数据库：PostgreSQL；缓存：Redis。
 
-## 2. 功能需求（以 ~/cngokz-web 原型为准）
+旧 vanilla 原型已归档到 `docs/prototype/cngokz-web`，仅作视觉与交互参照，
+新功能以 Vue 实现为准，不再回写原型。
 
-原型位置：`~/cngokz-web/index.html`、`styles.css`、`app.js`，原型 7 页 + 新增 1 页：
+## 2. 功能需求（以原型 + 已上线页面为准）
+
+原型位置：`docs/prototype/cngokz-web/`（只读参照）；Vue 实现位置：`frontend/src/features/`：
 
 1. 首页：社区统计、在线服务器列表、最新记录。
 2. 排行榜：全球玩家排名（KZT / SKZ / VNL 各 120 人，独立计分排序），
    每行含头像（模拟图，后续换 Steam 真实头像）、名称、SteamID64、完成地图、
    总分、平均分、记录数、最近游玩时间；支持名称模糊 / SteamID64 子串搜索、
    活跃度筛选（近 7 / 30 天、超 30 天未玩）、多字段排序，计数以标题右侧徽章展示。
-   条目字段后续接真实数据时保持兼容，详见 `web/app.js` 中 `buildMockLeaderboard` 注释。
+   条目字段后续接真实数据时保持兼容（后端 `modules/leaderboard/repository.rs` 同口径）。
 3. 地图列表：浏览全部地图，支持难度（Tier 1-8）筛选与搜索。
 4. 地图详情：单个地图信息 + 前 100 名排行。
 5. 服务器列表：全部在线服务器详细信息（地图、在线玩家、人数），默认列式展示，
@@ -36,19 +38,15 @@
 
 设计约束（必须保留）：
 
-- 浅色简约主题，白底 + 单一墨绿主色，细边框代替强阴影/发光。
-- 底部栏保持紧凑（内边距与间距已压薄，不得随意加高）。
-- 顶部导航栏：链接永不断行（`white-space: nowrap`），窄屏横向滚动或换两行，
-  不得出现文字重叠；新增导航项时同步验证 1100 / 860 / 600 三档断点。
-
-设计约束（必须保留）：
-
-- 浅色简约主题，白底 + 单一墨绿主色，细边框代替强阴影/发光。
+- 浅色简约主题，白底 + 单一墨绿主色（Naive UI 主题覆写 `#2F6F4F`），细边框代替强阴影/发光。
 - 克制干净，不做科技感/竞技风。
 - 响应式布局（基础支持），信息层级清晰。
 - 模式：KZT / SKZ / VNL；字体：Inter。
+- 底部栏保持紧凑（内边距与间距已压薄，不得随意加高）。
+- 顶部导航栏：链接永不断行，窄屏横向滚动或换两行，
+  不得出现文字重叠；新增导航项时同步验证 1100 / 860 / 600 三档断点。
 
-待后端支持的能力（原型中为模拟数据）：
+待后端支持的能力（当前为模拟数据）：
 
 - Steam OpenID 登录、实时服务器数据、玩家记录查询、地图库、
   排行榜实时更新、玩家搜索、管理员功能（删记录、封禁玩家）。
@@ -57,106 +55,162 @@
 
 ### 3.1 选型
 
-- 后端：Rust + Axum（路由） + Tokio（异步） + SQLx（数据库） + tracing（日志）。
-  - 为什么：性能好、内存安全、与后续游戏服务器插件生态契合；
-    Axum 与 Tokio 是当前 Rust 主流 Web 组合，SQLx 支持编译期检查 SQL。
-- 数据库：PostgreSQL（首选，生产）/ SQLite（本地开发可选）。
-  - 为什么：排行榜、前 100 名、分页查询需要强一致的 SQL 与索引；迁移工具成熟。
-- 网站第一阶段：Rust（Axum）做静态托管，直接复刻 `~/cngokz-web` 的
-  `index.html` + `styles.css` + `app.js`，做到一模一样，不引入前端构建链。
-  - 为什么：最快达到“一模一样”，无构建漂移；后续再按需引入模板（Askama）或前端框架。
-- 网站第二阶段：保留同一样式，把 `app.js` 中的模拟数据逐页替换为 `fetch(/api/...)` 真实接口。
-
-备选说明：若后续需要复杂交互，可评估 Leptos / Dioxus / React，但必须先经 PROJECT 评审，
-且不得改变既有视觉。
+| 层 | 选型 | 为什么 |
+|---|---|---|
+| 前端 | Vue 3 + TypeScript + Vite + Naive UI + Pinia + vue-router | 主流组合，TS 类型与后端 models 一一对应；Naive UI 表格/分页/表单开箱即用，主题可覆写 |
+| 后端 | Rust + Axum + Tokio + SQLx + tracing | 性能好、内存安全；Axum/Tokio 为 Rust 主流 Web 组合 |
+| 数据库 | PostgreSQL | 排行、前 100、分页查询需要强一致 SQL 与索引；`backend/migrations/` 版本化管理 |
+| 缓存 | Redis | 榜单等读多写少接口缓存（TTL 见各模块 service），无库也可启动（懒连接） |
 
 ### 3.2 运行形态
 
+开发期（前后端分离，Vite 代理）：
+
 ```text
-浏览器
-  └─> Rust Web 服务（Axum）
-        ├─ GET /            -> 托管 web/ 静态页面（与示例一致）
-        ├─ GET /static/*    -> CSS / JS / 字体 / 图片
-        └─ GET/POST /api/*  -> 后端 JSON API（第二阶段接真实数据）
+浏览器 :5173
+  └─> Vite dev（frontend/）
+        ├─ 页面/静态 -> 本地
+        └─ /api/* ---> 127.0.0.1:3000（Axum，可用 VITE_API_PROXY 改目标）
 ```
 
-## 4. 目录结构（目标态，当前为占位）
+生产（同源，Axum 托管构建产物）：
+
+```text
+浏览器
+  └─> Axum（backend/）
+        ├─ /, /assets/* -> frontend/dist（WEB_DIR 可覆盖，缺失只告警）
+        └─ /api/v1/*    -> JSON API
+```
+
+### 3.3 后端分层（职责固定）
+
+```text
+backend/src/
+├── main.rs            # 入口：日志 → 配置 → 状态 → 装配 → 监听
+├── app.rs             # 路由装配（/api/v1 嵌套 + 静态 fallback + CORS/Trace）
+├── config.rs          # 配置（环境变量，见 .env.example）
+├── state.rs           # 共享状态（AppState：config/db/redis，直接 Clone）
+├── errors.rs          # 统一错误 AppError → { error: { code, message } }
+├── middleware/        # cors（开发放行）、后续加 auth/限流
+├── infrastructure/    # db（PG 懒连接池）、cache（Redis Client），不写业务 SQL
+└── modules/<domain>/  # 业务模块，六件套（缺省可省）：
+    ├── routes.rs      # 只声明路径映射
+    ├── handlers.rs    # 薄层：参数萃取 + 错误映射
+    ├── service.rs     # 编排：校验、缓存策略、分页
+    ├── repository.rs  # 唯一可碰 DB/外部数据处（占位期返回模拟数据）
+    ├── models.rs      # 领域模型（Serialize）
+    └── dto.rs         # 查询/提交对象（Deserialize）
+```
+
+规则：handler 不拼 SQL、不做业务判断；service 不碰传输细节；
+repository 之外不得出现 `sqlx::query`；无数据访问的模块可省略 `repository.rs`。
+
+### 3.4 前端分层（职责固定）
+
+```text
+frontend/src/
+├── app/          # 初始化（main.ts）、根组件、Naive UI 主题
+├── router/       # 路由及标题（权限守卫后续在此加）
+├── layouts/      # 页面布局（导航 + 紧凑底部栏）
+├── components/   # 跨模块公共组件（有第二个使用者时再下沉，勿提前抽象）
+├── features/<domain>/  # 业务模块：页面 + api.ts + types.ts
+├── services/http.ts     # 全站唯一 fetch 出口（错误体归一为 ApiError）
+├── stores/       # Pinia（app.currentMode 为全站模式总开关）
+├── composables/  # useApi（{ data, loading, error, reload } 范式）
+├── types/        # 公共类型（JSON 一律 snake_case，与后端 models 一一对应）
+└── utils/        # 纯展示函数
+```
+
+规则：页面只经 `features/<domain>/api.ts` 调接口；类型不做驼峰映射；
+公共组件有两个使用者才下沉到 `components/`。
+
+## 4. 目录结构（现状）
 
 ```text
 cngokzapi/
-├── backend/              # Rust 后端 crate（Axum + SQLx）
+├── frontend/             # Vue 3 + TS + Vite（见 frontend/README.md）
 │   ├── src/
-│   │   ├── main.rs       # 入口、二进制启动
-│   │   ├── router.rs     # 路由装配（/ 与 /api/*）
-│   │   ├── api/          # 各资源 handler（players/maps/records/servers/auth/admin）
-│   │   ├── db/           # 连接池、查询封装
-│   │   └── config.rs     # 配置（环境变量）
+│   │   ├── app/          # 初始化、根组件、主题
+│   │   ├── router/       # 路由及标题
+│   │   ├── layouts/      # 页面布局
+│   │   ├── components/   # 跨模块公共组件
+│   │   ├── features/     # home/leaderboard/records/servers/maps/profile/bans/auth
+│   │   ├── services/     # http.ts 全站唯一 fetch 出口
+│   │   ├── stores/       # Pinia（app.currentMode）
+│   │   ├── composables/  # useApi
+│   │   ├── types/        # 公共类型（snake_case）
+│   │   └── utils/        # 纯展示函数
+│   ├── tests/            #（vitest 规划中）
+│   ├── package.json
+│   └── vite.config.ts    # /api 代理到 Axum
+├── backend/              # Rust + Axum（见 backend/README.md）
+│   ├── src/              # main/app/config/state/errors/middleware/infrastructure/modules
+│   ├── migrations/       # 0001_init.sql（sqlx migrate 管理）
+│   ├── tests/            #（集成测试规划中，单测在各模块内）
 │   ├── Cargo.toml
-│   └── PLACEHOLDER.md    # 推送前占位，开发时删除
-├── web/                  # 网站静态资源（必须与 ~/cngokz-web 一模一样）
-│   ├── index.html
-│   ├── styles.css
-│   ├── app.js
-│   └── PLACEHOLDER.md    # 推送前占位，开发时替换为真实文件
-├── migrations/           # SQLx / sql 迁移文件（推送后添加）
-├── docs/                 # 补充文档（推送后添加）
-├── scripts/              # 开发/运维脚本（推送后添加）
+│   └── Cargo.lock
+├── docs/                 # 与 frontend/backend 同级
+│   └── prototype/cngokz-web/  # 旧 vanilla 原型（只读参照）
+├── scripts/              # 运维脚本（预留）
 ├── PROJECT.md
 ├── CHANGELOG.md
-└── Cargo.toml            # workspace（推送后创建，成员含 backend）
+├── README.md
+├── .env.example
+└── Cargo.toml            # workspace（成员：backend）
 ```
 
-当前骨架中 `backend/src/`、`docs/`、`scripts/`、`migrations/` 暂用 `.gitkeep` 保留空目录。
-
-## 5. 数据库设计（草案，推送后细化）
-
-表（最小集）：
+## 5. 数据库设计（以 `backend/migrations/0001_init.sql` 为准）
 
 - `players(steam_id PK, name, avatar_url, points, created_at, banned_until)`
-- `maps(id PK, name UNIQUE, tier 1-8, mode KZT/SKZ/VNL, created_at)`
+- `maps(id PK, name UNIQUE, tier 1-8, mode, created_at)`
 - `records(id PK, player_steam_id FK, map_id FK, mode, time_ms, points, created_at)`
   - 索引：`(map_id, mode, time_ms)` 用于地图前 100；`(player_steam_id, created_at)` 用于个人记录。
 - `servers(id PK, name, map, ip, port, player_count, max_players, updated_at)`
+- `bans(steam_id PK FK, name, avatar_url, reason, server, detail, banned_at)`
+  - 索引：`(banned_at DESC)` 用于封禁名单倒序。
 - `admins(steam_id PK, role, created_at)`
 
-约定：全部 `created_at/updated_at` 使用 UTC；时间存毫秒整数 `time_ms`；金额/积分用整数。
+约定：全部时间 `TIMESTAMPTZ`（UTC）；成绩存毫秒整数 `time_ms`；积分用整数；
+JSON 一律 snake_case，与前后端类型一一对应。
 
 ## 6. API 规范
 
-- 前缀：`/api/v1`，JSON，UTF-8。
+- 前缀：`/api/v1`，JSON，UTF-8。已落地：
+  `GET /api/v1/health`、`GET /api/v1/leaderboard?mode=KZT`、
+  `GET /api/v1/records`、`GET /api/v1/bans?query=&page=&per_page=`。
 - 命名：复数资源小写下划线，如 `GET /api/v1/players/:steam_id`、`GET /api/v1/maps`、
-  `GET /api/v1/maps/:id/records?mode=KZT&limit=100`、`GET /api/v1/rankings?scope=total|monthly|weekly`、
-  `GET /api/v1/servers`。
-- 分页：`?page=1&per_page=50`（默认 50，最大 100），返回 `{ data, pagination: { page, per_page, total } }`。
+  `GET /api/v1/maps/:id/records?mode=KZT`、`GET /api/v1/servers`。
+- 分页：`?page=1&per_page=20`（默认 20，最大 100），返回 `{ data, pagination: { page, per_page, total } }`。
 - 错误：统一 `{ error: { code, message } }`，HTTP 状态码语义正确
-  （400 参数错 / 401 未登录 / 403 无权限 / 404 不存在 / 500 服务错），`code` 如 `INVALID_PARAM`。
+  （400 参数错 / 401 未登录 / 403 无权限 / 404 不存在 / 500 服务错 / 503 依赖未就绪），`code` 如 `INVALID_PARAM`。
 - 权限：普通接口公开；写操作与管理接口需 Steam 登录 + session/cookie 校验；
   管理员接口再校验 `admins` 表角色。
 - 日志：Axum `TraceLayer` 记录请求方法、路径、状态码、耗时；业务错误记 `warn`，系统错误记 `error`。
 
 ## 7. 编码规范
 
-- Rust：`cargo fmt` + `cargo clippy -D warnings` 必须通过；模块按资源拆分；
-  DB 查询一律经 `db/` 封装，不在 handler 里拼 SQL 字符串。
-- 前端复刻阶段：不改视觉（颜色、间距、字体、断点），`styles.css` 原则上原样搬运；
-  如需适配 Axum 静态路径，只改引用路径并记入 CHANGELOG。
-- 注释：复杂 SQL、排名算法、Steam 流程必须写中文注释说明原因。
+- Rust：`cargo fmt` + `cargo clippy -D warnings` 必须通过；按 §3.3 分层，
+  DB 查询一律在 `repository.rs`，不在 handler 里拼 SQL 字符串；
+  `#[allow(dead_code)]` 必须写清消除条件，随首个消费者落地消除。
+- Vue/TS：`npm run build`（含 `vue-tsc -b`）必须通过；`noUnusedLocals` 下无用引入直接删；
+  类型 snake_case 不映射；注释用中文写清原因（复杂逻辑、Steam 流程、占位替换点）。
 - 提交信息：`feat/fix/docs/chore: 简述`，中文，关联页面或 API。
 
 ## 8. 开发流程
 
-1. 日常从 `develop` 切功能分支：`feat/web-mirror`、`feat/api-players` 等。
-2. 自测：后端 `cargo test`；网站对照 `~/cngokz-web` 逐页比对（首页/排行/地图/详情/服务器/资料/登录）。
+1. 日常从 `develop` 切功能分支：`feat/xxx` 等。
+2. 自测：后端 `cargo test` + `cargo clippy --all-targets -- -D warnings`；
+   前端 `npm run build`（含 `vue-tsc -b`）；联调时后端 `cargo run` + 前端 `npm run dev` 走代理验证。
 3. 合入 `develop` 前更新 `CHANGELOG.md`（按模板写清文件/DB/API/测试）。
 4. 稳定后 `develop` -> `main`，打 tag。
 5. AI 开发前必须检查：
    - 读 `PROJECT.md` + `CHANGELOG.md` 最新状态。
-   - 对照 `~/cngokz-web` 原型确认页面与样式。
+   - 对照 `docs/prototype/cngokz-web` 确认页面与样式（只读，不回写）。
    - 确认当前分支（日常在 `develop` 或功能分支，不直接提交 `main`）。
 6. AI 开发后必须更新：
    - `CHANGELOG.md` 新增当日条目。
    - 若架构/目录/API/DB 有变，同步改 `PROJECT.md`。
-   - 保持占位文件清理（真实文件落地后删除对应 `PLACEHOLDER.md`）。
+   - 无 PG/Redis 时不得阻塞启动（懒连接），占位 `allow(dead_code)` 写清消除条件。
 
 ## 9. 当前状态与下一步
 
@@ -167,10 +221,12 @@ cngokzapi/
 - 当前：排行榜加厚完成（2026-10-16，`develop`）：每模式 120 人、头像（模拟图）、
   SteamID64、最近游玩时间、名称/SteamID64 搜索 + 活跃度筛选 + 多字段排序，
   导航栏搜索框联动定位到排行榜；`cargo test/clippy` 与静态托管验证均通过。
-- 当前：记录三列 + 封禁名单完成（2026-10-16，`develop`）：最新记录三模式并排各 20 条
-  （与模式开关解耦）；全站底部栏压薄；新增封禁名单页（45 条模拟、搜索 + 每页 20 人翻页）；
-  逻辑单测 25 断言与托管验证均通过。
+- 当前：正式结构落地（2026-10-16，`develop`）：前端 Vue 3 + TS + Vite + Naive UI
+ （8 路由，排行榜/封禁/记录三页接真实接口，其余占位），后端 Axum 模块化单体
+  （health/leaderboard/records/bans 四模块，统一错误体，PG/Redis 懒连接），
+  `backend/migrations/0001_init.sql` 落地；`cargo test` 8 passed、`clippy`、`vue-tsc` 构建全过，
+  Vite 代理与 dist 托管联调验证通过。
 - 下一步（按序）：
-  1. ~~`cargo new` / workspace 初始化，后端 Hello World + 健康检查 `GET /api/v1/health`。~~ ✅ 已完成
-  2. ~~`web/` 1:1 复刻 `~/cngokz-web`，Axum 托管静态，对比验证一模一样。~~ ✅ 已完成
-  3. 设计迁移 SQL + 上述核心 API，`app.js` 从模拟数据切到真实接口。
+  1. ~~旧阶段（vanilla 原型 + 单文件后端）~~ ✅ 已归档/替换
+  2. 剩余页面接真实接口：servers / maps / profile / home（后端 modules + 前端 features 对齐落地）
+  3. Steam OpenID 登录 + 管理接口（删记录、封禁）+ Redis 缓存与 PG 回源替换模拟层

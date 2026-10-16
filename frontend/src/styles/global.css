@@ -1,0 +1,61 @@
+/* 全局基座：沿用旧原型浅色 tokens，组件样式交给 Naive UI + 各页 scoped CSS。 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg-page: #fafaf9;
+  --bg-card: #ffffff;
+  --bg-subtle: #f3f2ef;
+  --bg-hover: #efeeea;
+  --text-primary: #1c1c1a;
+  --text-secondary: #5b5a56;
+  --text-muted: #8e8c86;
+  --border-color: #e6e4df;
+  --border-strong: #d5d2cb;
+  --accent: #2f6f4f;
+  --accent-hover: #255a40;
+  --accent-soft: #e7f0ea;
+  --danger: #b5533c;
+  --font-base: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+body {
+  font-family: var(--font-base);
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.page-head {
+  margin-bottom: 24px;
+}
+
+.page-title {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+}
+
+.page-sub {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}

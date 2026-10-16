@@ -1,3 +1,4 @@
+//! 配置管理：全部来自环境变量，详见根目录 `.env.example`。
 use std::net::SocketAddr;
 
 /// 服务配置，全部来自环境变量，方便本地与生产切换。
@@ -5,9 +6,13 @@ use std::net::SocketAddr;
 pub struct AppConfig {
     pub host: String,
     pub port: u16,
-    /// 静态网站目录，默认 `web`（workspace 根下）。
-    /// 二进制位置变化时可用 WEB_DIR 覆盖，例如 WEB_DIR=/srv/cngokz/web。
+    /// 前端构建产物目录，默认 `frontend/dist`（workspace 根下相对路径）。
+    /// 未构建前端时 API 照常可用，静态页返回缺失提示，见 `app.rs`。
     pub web_dir: String,
+    /// PostgreSQL 连接串。懒连接，无库也可启动，数据访问失败时接口返回 503。
+    pub database_url: String,
+    /// Redis 连接串。Client 不建连，无库也可启动。
+    pub redis_url: String,
 }
 
 impl AppConfig {
@@ -15,12 +20,14 @@ impl AppConfig {
         Self {
             // 默认监听全网段，局域网可经 http://192.168.0.101:PORT 访问；
             // 如只想本机访问，可设 HOST=127.0.0.1；如只想固定网卡，可设 HOST=192.168.0.101。
-            host: std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string()),
-            port: std::env::var("PORT")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(3000),
-            web_dir: std::env::var("WEB_DIR").unwrap_or_else(|_| "web".to_string()),
+            host: env("HOST", "0.0.0.0"),
+            port: env("PORT", "3000").parse().unwrap_or(3000),
+            web_dir: env("WEB_DIR", "frontend/dist"),
+            database_url: env(
+                "DATABASE_URL",
+                "postgres://cngokz:cngokz@127.0.0.1:5432/cngokz",
+            ),
+            redis_url: env("REDIS_URL", "redis://127.0.0.1:6379"),
         }
     }
 
@@ -29,4 +36,8 @@ impl AppConfig {
             .parse()
             .expect("HOST/PORT 不是合法的 SocketAddr")
     }
+}
+
+fn env(key: &str, default: &str) -> String {
+    std::env::var(key).unwrap_or_else(|_| default.to_string())
 }

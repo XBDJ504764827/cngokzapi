@@ -10,6 +10,27 @@
 
 ---
 
+## 2026-10-16 正式结构：Vue3+TS+Vite / Axum模块化单体 / PG+Redis
+
+- 背景：旧 vanilla 三件套结构到顶，切换为正式项目结构（前端 Vue 3 + TS + Vite + Naive UI，后端 Rust + Axum 模块化单体，PG + Redis），UI 库选 Naive UI（TS 支持好、主题易覆写）。
+- 为什么这样做：
+  - 前端按业务模块组织（features/ 下页面 + api.ts + types.ts），新增页面只加目录不碰公共层；全站唯一 fetch 出口收敛错误体。
+  - 后端层职责固定（routes 薄 / service 编排 / repository 唯一碰数据），模拟数据下沉到各 repository，上层不动即可替换 PG 回源；PG/Redis 懒连接，无库不阻塞启动。
+  - 旧原型移入 `docs/prototype/cngokz-web` 只读参照，不再回写。
+- 变更内容：
+  - 新增 `frontend/`：8 路由（home/leaderboard/maps/servers/records/profile/bans/login），排行榜/封禁/记录三页经 services 调真实接口完成，其余占位；`stores/app.currentMode` 为全站模式总开关；Vite `/api` 代理到 Axum。
+  - 重写 `backend/src`：`main/app/config/state/errors` + `middleware/cors` + `infrastructure/db+cache` + `modules/health+leaderboard+records+bans`（六件套）+ 共享 `page` 分页信封与 `mock` 确定性数据；删除旧 `api/` 与 `router.rs`。
+  - 新增 API：`GET /api/v1/leaderboard?mode=`（120/榜，非法 mode 400）、`GET /api/v1/records`（60 条）、`GET /api/v1/bans?query=&page=&per_page=`（分页信封）；`GET /` 改托管 `frontend/dist`（WEB_DIR 默认变更，缺失只告警）。
+  - 新增 `backend/migrations/0001_init.sql`（players/maps/records/servers/bans/admins，与 PROJECT §5 一致）；根 `migrations/` 并入 backend。
+  - 文档：PROJECT §1/§3/§4/§5/§6/§7/§8 重写（选型表、分层职责、snake_case、分页默认 20），新增 `frontend/README.md`、`backend/README.md`，根 README 重写，`.env.example` 补 DATABASE_URL/REDIS_URL/WEB_DIR。
+- 涉及文件：新增约 50 个（frontend 脚手架 + backend 模块 + 迁移 SQL），删除 `web/`（已搬迁）、旧后端 `api/`/`router.rs`。
+- 数据库与 API 变化：DB 无运行实例（仅迁移文件落地）；API 见上（新增 3 组，health 不变）。
+- 测试与结果（2026-10-16）：
+  - 后端：`cargo test` 8 passed（健康/分页/三榜形态/记录/封禁搜索翻页/错误映射）；`cargo clippy --all-targets -- -D warnings` 通过；`cargo fmt --check` 通过。
+  - 前端：`npm run build`（vue-tsc + vite）一次通过；`@types/node` 为 vite.config 补装。
+  - 联调：`curl` 验证 health/榜单 120 行/非法 mode 400 信封/记录 60/封禁第 3 页 5 行总数 45/搜索命中、`/` 托管 dist；Vite dev 页 + `/api` 代理均通。
+  - 修过的问题：sqlx 特性名 `tls-rustls`；`Page` 泛型 Serialize 界；f32/f64；脚手架期 `allow(dead_code)` 均写清消除条件。
+
 ## 2026-10-16 顶部导航栏防重叠布局修复
 
 - 背景：加入封禁名单后导航共 6 个链接，空间不足时链接文字被挤换行、与品牌区/右侧操作区视觉重叠。

@@ -1,6 +1,12 @@
-mod api;
+//! cngokz-backend 程序入口：初始化日志 → 加载配置 → 构建共享状态 → 装配应用 → 启动监听。
+
+mod app;
 mod config;
-mod router;
+mod errors;
+mod infrastructure;
+mod middleware;
+mod modules;
+mod state;
 
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -16,10 +22,16 @@ async fn main() {
         .init();
 
     let config = config::AppConfig::from_env();
-    let app = router::create_router_with_web_dir(&config.web_dir);
+    let state = state::AppState::new(config.clone());
+    let app = app::create_app(state);
 
     let addr = config.bind_addr();
-    tracing::info!("listening on http://{}, web_dir={}", addr, config.web_dir);
+    tracing::info!(
+        host = %config.host,
+        port = config.port,
+        web_dir = %config.web_dir,
+        "listening"
+    );
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
