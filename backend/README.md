@@ -15,8 +15,9 @@ Rust + Axum 模块化单体。层职责见 PROJECT.md §3.3，目录如下：
 ```bash
 cargo test                              # 单测
 cargo clippy --all-targets -- -D warnings
-cargo run -p cngokz-backend             # 默认 0.0.0.0:3000，托管 frontend/dist
-sqlx migrate run                        # 需先起 PG（DATABASE_URL）
+cargo run -p cngokz-backend             # 默认 0.0.0.0:3000，托管 frontend/dist，读本地 .env
+curl http://127.0.0.1:3000/api/v1/health/ready   # {"status":"ready",...} 即 PG/Redis 双通
+DATABASE_URL=... sqlx migrate run --source backend/migrations  # 应用迁移（测试库 62 已应用 0001）
 ```
 
-无 PG/Redis 也可启动（懒连接），数据接口届时返回 503。
+无 PG/Redis 也可启动（懒连接），`/ready` 显示 degraded，数据接口仍走模拟层。

@@ -12,6 +12,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() {
+    // 本地 .env（git 忽略）优先于编译期环境，缺失则直接用真实环境变量
+    dotenvy::dotenv().ok();
     // 日志：默认 info，可用 RUST_LOG 覆盖，例如 RUST_LOG=debug
     tracing_subscriber::registry()
         .with(

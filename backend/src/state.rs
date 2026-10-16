@@ -7,10 +7,7 @@ use crate::{config::AppConfig, infrastructure};
 #[derive(Clone)]
 pub struct AppState {
     pub config: AppConfig,
-    // 首个查库模块落地前暂无人读取，allow 随之消除。
-    #[allow(dead_code)]
     pub db: sqlx::PgPool,
-    #[allow(dead_code)]
     pub redis: redis::Client,
 }
 

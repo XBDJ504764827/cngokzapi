@@ -226,6 +226,9 @@ JSON 一律 snake_case，与前后端类型一一对应。
   （health/leaderboard/records/bans 四模块，统一错误体，PG/Redis 懒连接），
   `backend/migrations/0001_init.sql` 落地；`cargo test` 8 passed、`clippy`、`vue-tsc` 构建全过，
   Vite 代理与 dist 托管联调验证通过。
+- 当前：62 测试库已接通（2026-10-16，`develop`）：`.env` + `dotenvy` 落地，
+  `GET /api/v1/health/ready` 返回 PG/Redis 双 true，`0001_init` 迁移已在 62 库应用；
+  数据接口仍走模拟层，下一步换 PG 回源 + Redis 缓存。
 - 下一步（按序）：
   1. ~~旧阶段（vanilla 原型 + 单文件后端）~~ ✅ 已归档/替换
   2. 剩余页面接真实接口：servers / maps / profile / home（后端 modules + 前端 features 对齐落地）

@@ -10,6 +10,24 @@
 
 ---
 
+## 2026-10-16 接入62测试库：dotenv + 就绪探针 + 迁移落地
+
+- 背景：局域网 192.168.0.62 上有现成测试库（PG 库 cngokzapi / Redis 带密码），把后端真正连上去，结束“无库启动”阶段。
+- 变更内容：
+  - 新增 `dotenvy`，`main` 启动时加载本地 `.env`（git 忽略）；新增本地 `.env`（62 地址），`.env.example` 默认值同步为 62 测试库。
+  - 新增 `GET /api/v1/health/ready`（health 模块 service + handler + route）：返回 `{ status, postgres, redis }`，任一不通即 degraded 不抛错；顺带消除 `state.db/redis` 与 `db::ping` 的 `allow(dead_code)`。
+  - 在 62 库执行 `sqlx migrate run`，`0001_init` 已应用（players/maps/records/servers/bans/admins）。
+- 涉及文件：
+  - 修改：`backend/Cargo.toml`、`backend/src/main.rs`、`backend/src/state.rs`、`backend/src/infrastructure/db.rs`、`backend/src/modules/health/*`、`backend/README.md`、`.env.example`、`PROJECT.md`、`CHANGELOG.md`
+  - 新增（未提交）：`.env`（git 忽略）
+- 数据库与 API 变化：
+  - DB：62 库已建表（迁移 applied）；数据接口仍走模拟层（下次再换 PG 回源）。
+  - API：新增 `/api/v1/health/ready`；其余不变。
+- 测试与结果（2026-10-16）：
+  - `cargo test` 8 passed；`cargo clippy --all-targets -- -D warnings` 通过；`cargo fmt --check` 通过。
+  - 运行时（直连 3000，`.env` 生效）：`curl /api/v1/health/ready` 返回 `{"status":"ready","postgres":true,"redis":true}`；榜单仍走模拟（SKZ 首位 JumpGod，120 条）。
+  - `git check-ignore .env` 确认凭据文件不会被提交。
+
 ## 2026-10-16 正式结构：Vue3+TS+Vite / Axum模块化单体 / PG+Redis
 
 - 背景：旧 vanilla 三件套结构到顶，切换为正式项目结构（前端 Vue 3 + TS + Vite + Naive UI，后端 Rust + Axum 模块化单体，PG + Redis），UI 库选 Naive UI（TS 支持好、主题易覆写）。

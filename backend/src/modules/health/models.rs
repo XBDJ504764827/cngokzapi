@@ -7,3 +7,11 @@ pub struct HealthResponse {
     pub service: &'static str,
     pub version: &'static str,
 }
+
+/// 就绪检查响应体：如实反映依赖状态，不可用只降级不报错。
+#[derive(Serialize)]
+pub struct ReadyResponse {
+    pub status: &'static str,
+    pub postgres: bool,
+    pub redis: bool,
+}

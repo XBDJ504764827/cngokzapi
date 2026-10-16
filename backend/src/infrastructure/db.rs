@@ -10,8 +10,7 @@ pub fn connect_lazy(database_url: &str) -> PgPool {
         .expect("DATABASE_URL 非法")
 }
 
-/// 连通性探针，供后续 `/api/v1/health/ready` 就绪检查使用。
-#[allow(dead_code)]
+/// 连通性探针，供 `/api/v1/health/ready` 就绪检查使用。
 pub async fn ping(pool: &PgPool) -> bool {
     sqlx::query("SELECT 1").fetch_one(pool).await.is_ok()
 }
