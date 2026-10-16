@@ -110,6 +110,82 @@ function buildMockLeaderboard(mode) {
     return rows;
 }
 
+// ========== 最新记录模拟数据（占位，每模式最新 20 条，后续替换为真实数据） ==========
+const RECENT_RECORDS_PER_MODE = 20;
+const RECENT_RECORD_MAPS = ['kz_hopstep', 'kz_easy_beta', 'kz_extreme_tower', 'kz_bhop_easy', 'kz_surf_complex', 'kz_climb_hard'];
+
+function mockRecordTime(rng) {
+    const m = String(Math.floor(rng() * 4)).padStart(2, '0');
+    const s = String(Math.floor(rng() * 60)).padStart(2, '0');
+    const ms = String(Math.floor(rng() * 100)).padStart(2, '0');
+    return m + ':' + s + '.' + ms;
+}
+
+function recentRecordNamePool() {
+    const seen = new Set();
+    const pool = [];
+    const push = (n) => { if (!seen.has(n)) { seen.add(n); pool.push(n); } };
+    for (const mode of ['KZT', 'SKZ', 'VNL']) (LEADERBOARD_HEAD[mode] || []).forEach((h) => push(h.player));
+    LEADERBOARD_NAME_POOL.forEach(push);
+    return pool;
+}
+
+function buildMockRecentRecords() {
+    const pool = recentRecordNamePool();
+    const rows = [];
+    ['KZT', 'SKZ', 'VNL'].forEach((mode, modeIdx) => {
+        const rng = mulberry32(500 + LEADERBOARD_MODE_INDEX[mode] * 31);
+        for (let i = 0; i < RECENT_RECORDS_PER_MODE; i++) {
+            const days = Math.floor(i / 2); // 每天约两条，按时间倒序即最新 20 条
+            rows.push({
+                player: pool[(i + modeIdx * 7) % pool.length],
+                map: RECENT_RECORD_MAPS[Math.floor(rng() * RECENT_RECORD_MAPS.length)],
+                mode: mode,
+                time: mockRecordTime(rng),
+                points: 600 + Math.floor(rng() * 351),
+                date: daysAgoToDate(days)
+            });
+        }
+    });
+    return rows;
+}
+
+// ========== 封禁名单模拟数据（占位，后续替换为真实管理数据） ==========
+// 字段保持兼容：{ player, steamId64, avatar, reason, bannedAt, bannedDaysAgo, server, detail }
+const BANS_PER_PAGE = 20;
+const BANS_COUNT = 45; // 故意超过一页，验证翻页
+const BAN_REASONS = ['使用连跳作弊', '穿墙作弊', '计时器数据篡改', '多开账号刷分', '恶意利用地图漏洞'];
+const BAN_SERVERS = ['【CN】KZ 中国服务器 #1', '【CN】KZ 练习服 #2', '【CN】KZ 竞技服 #3'];
+
+function mockBanSteamId64(i) {
+    return '76561198' + String(300000000 + i * 104729).padStart(9, '0');
+}
+
+function buildMockBans() {
+    const rng = mulberry32(777);
+    const pool = recentRecordNamePool();
+    const rows = [];
+    for (let i = 0; i < BANS_COUNT; i++) {
+        const base = pool[i % pool.length];
+        const name = base + (i >= pool.length ? '_b' + (Math.floor(i / pool.length) + 1) : '');
+        const map = RECENT_RECORD_MAPS[Math.floor(rng() * RECENT_RECORD_MAPS.length)];
+        const mode = ['KZT', 'SKZ', 'VNL'][Math.floor(rng() * 3)];
+        const days = Math.floor(rng() * 90);
+        rows.push({
+            player: name,
+            steamId64: mockBanSteamId64(i),
+            avatar: mockAvatar('ban:' + name),
+            reason: BAN_REASONS[Math.floor(rng() * BAN_REASONS.length)],
+            bannedAt: daysAgoToDate(days),
+            bannedDaysAgo: days,
+            server: BAN_SERVERS[Math.floor(rng() * BAN_SERVERS.length)],
+            detail: map + ' · ' + mode + ' · ' + mockRecordTime(rng) + ' · Demo #' + (80000 + Math.floor(rng() * 19999))
+        });
+    }
+    rows.sort((a, b) => a.bannedDaysAgo - b.bannedDaysAgo); // 最近被封禁的在前
+    return rows;
+}
+
 // ========== 模拟数据 ==========
 const mockData = {
     servers: [
@@ -148,17 +224,7 @@ const mockData = {
         }
     ],
     
-    recentRecords: [
-        { player: 'ProGamer', map: 'kz_hopstep', mode: 'KZT', time: '01:23.45', points: 892, date: '2024-01-15' },
-        { player: 'KZ_Master', map: 'kz_hopstep', mode: 'KZT', time: '01:25.67', points: 884, date: '2024-01-14' },
-        { player: 'StrafePro', map: 'kz_bhop_easy', mode: 'KZT', time: '00:36.78', points: 845, date: '2024-01-13' },
-        { player: 'SpeedRunner', map: 'kz_easy_beta', mode: 'SKZ', time: '00:45.23', points: 678, date: '2024-01-15' },
-        { player: 'JumpGod', map: 'kz_bhop_easy', mode: 'SKZ', time: '00:34.12', points: 723, date: '2024-01-13' },
-        { player: 'BunnyhopKing', map: 'kz_hopstep', mode: 'SKZ', time: '01:31.09', points: 701, date: '2024-01-12' },
-        { player: 'TechMaster', map: 'kz_extreme_tower', mode: 'VNL', time: '03:12.87', points: 956, date: '2024-01-14' },
-        { player: 'ClimbFan', map: 'kz_climb_hard', mode: 'VNL', time: '02:41.55', points: 902, date: '2024-01-13' },
-        { player: 'NewbieMaster', map: 'kz_easy_beta', mode: 'VNL', time: '00:58.31', points: 640, date: '2024-01-12' }
-    ],
+    recentRecords: buildMockRecentRecords(),
 
     // KZT / SKZ / VNL 三个独立排行榜(各模式独立计分、独立排序，每榜 120 人模拟数据)
     leaderboards: {
@@ -166,6 +232,9 @@ const mockData = {
         SKZ: buildMockLeaderboard('SKZ'),
         VNL: buildMockLeaderboard('VNL')
     },
+
+    // 封禁名单（模拟占位，搜索 + 每页 20 人翻页）
+    bans: buildMockBans(),
     
     maps: [
         { id: 1, name: 'kz_hopstep', tier: 3, author: 'MapMaker', type: '线性', completions: 1234, avgTime: '01:45.32', worldRecord: '01:23.45', image: 'https://placehold.co/800x450/2F6F4F/F8FAFC?text=kz_hopstep' },
@@ -235,21 +304,18 @@ function setMode(mode) {
     if (switchBtn) switchBtn.textContent = mode;
     const lbLabel = document.getElementById('leaderboardModeLabel');
     if (lbLabel) lbLabel.textContent = mode;
-    const recLabel = document.getElementById('recordsModeLabel');
-    if (recLabel) recLabel.textContent = mode;
     const mapLabel = document.getElementById('mapModeLabel');
     if (mapLabel) mapLabel.textContent = mode;
     const profileLabel = document.getElementById('profileModeLabel');
     if (profileLabel) profileLabel.textContent = mode;
-    // 刷新所有跟模式相关的榜单与个人资料
+    // 刷新所有跟模式相关的榜单与个人资料（最新记录三列固定，不跟随模式）
     renderLeaderboard(mode);
-    renderRecentRecords();
     renderMapLeaderboard();
     renderProfile();
 }
 
 // ========== 页面导航 ==========
-const pages = ['home', 'records', 'leaderboard', 'maps', 'servers', 'mapDetail', 'profile'];
+const pages = ['home', 'records', 'leaderboard', 'maps', 'servers', 'mapDetail', 'profile', 'bans'];
 
 function navigateTo(pageName) {
     pages.forEach(page => {
@@ -283,20 +349,22 @@ function renderAnnouncements() {
     `).join('');
 }
 
+// 最新记录：三列并排，一列一种模式，各列最新 20 条（不再跟随模式开关）
 function renderRecentRecords() {
-    const recordsTable = document.getElementById('recentRecords');
-    if (!recordsTable) return;
-    const rows = mockData.recentRecords.filter(r => r.mode === currentMode);
-    recordsTable.innerHTML = rows.map(record => `
-        <tr>
-            <td><a href="#" class="player-link" onclick="navigateTo('profile'); return false;">${record.player}</a></td>
-            <td>${record.map}</td>
-            <td><span class="mode-badge">${record.mode}</span></td>
-            <td class="time-value">${record.time}</td>
-            <td class="points-value">${record.points}</td>
-            <td>${record.date}</td>
-        </tr>
-    `).join('');
+    for (const mode of ['KZT', 'SKZ', 'VNL']) {
+        const recordsTable = document.getElementById('recentRecords' + mode);
+        if (!recordsTable) continue;
+        const rows = mockData.recentRecords.filter(r => r.mode === mode).slice(0, 20);
+        recordsTable.innerHTML = rows.map(record => `
+            <tr>
+                <td><a href="#" class="player-link" onclick="navigateTo('profile'); return false;">${record.player}</a></td>
+                <td>${record.map}</td>
+                <td class="time-value">${record.time}</td>
+                <td class="points-value">${record.points}</td>
+                <td>${record.date}</td>
+            </tr>
+        `).join('');
+    }
 }
 
 // ========== 排行榜状态（搜索 / 筛选 / 排序，筛选条件在模式切换时保留） ==========
@@ -368,6 +436,82 @@ function applyLeaderboardSearch(query) {
     const input = document.getElementById('leaderboardSearch');
     if (input && input.value !== leaderboardQuery) input.value = leaderboardQuery;
     renderLeaderboard(currentMode);
+}
+
+// ========== 封禁名单（搜索 + 每页 20 人翻页） ==========
+let bansQuery = '';
+let bansPage = 1;
+
+function getFilteredBans() {
+    const q = bansQuery.trim().toLowerCase();
+    if (!q) return mockData.bans;
+    return mockData.bans.filter(b =>
+        b.player.toLowerCase().includes(q) || b.steamId64.includes(q)
+    );
+}
+
+function renderBans() {
+    const tbody = document.getElementById('bansData');
+    if (!tbody) return;
+    const rows = getFilteredBans();
+    const totalPages = Math.max(1, Math.ceil(rows.length / BANS_PER_PAGE));
+    if (bansPage > totalPages) bansPage = totalPages;
+    const pageRows = rows.slice((bansPage - 1) * BANS_PER_PAGE, bansPage * BANS_PER_PAGE);
+
+    const countEl = document.getElementById('bansCount');
+    if (countEl) {
+        countEl.textContent = bansQuery.trim() === ''
+            ? '共 ' + rows.length + ' 人'
+            : '筛出 ' + rows.length + ' 人';
+    }
+    const emptyEl = document.getElementById('bansEmpty');
+    if (emptyEl) emptyEl.hidden = rows.length !== 0;
+
+    tbody.innerHTML = pageRows.map(b => `
+        <tr>
+            <td>
+                <div class="lb-player">
+                    <img class="lb-avatar" src="${b.avatar}" alt="${b.player} 的头像" loading="lazy" onerror="this.style.visibility='hidden'">
+                    <div class="lb-id">
+                        <span class="player-link">${b.player}</span>
+                        <span class="lb-steam">${b.steamId64}</span>
+                    </div>
+                </div>
+            </td>
+            <td><span class="ban-reason">${b.reason}</span></td>
+            <td>${b.bannedAt}</td>
+            <td>${b.server}</td>
+            <td><span class="ban-detail">${b.detail}</span></td>
+        </tr>
+    `).join('');
+
+    renderBansPagination(totalPages);
+}
+
+function renderBansPagination(totalPages) {
+    const el = document.getElementById('bansPagination');
+    if (!el) return;
+    if (totalPages <= 1) {
+        el.innerHTML = '';
+        return;
+    }
+    let buttons = '';
+    for (let p = 1; p <= totalPages; p++) {
+        buttons += `<button class="page-btn${p === bansPage ? ' active' : ''}" onclick="gotoBansPage(${p})">${p}</button>`;
+    }
+    el.innerHTML = `
+        <button class="page-btn" onclick="gotoBansPage(${bansPage - 1})"${bansPage <= 1 ? ' disabled' : ''}>上一页</button>
+        ${buttons}
+        <button class="page-btn" onclick="gotoBansPage(${bansPage + 1})"${bansPage >= totalPages ? ' disabled' : ''}>下一页</button>
+        <span class="page-info">第 ${bansPage} / ${totalPages} 页</span>
+    `;
+}
+
+function gotoBansPage(p) {
+    const totalPages = Math.max(1, Math.ceil(getFilteredBans().length / BANS_PER_PAGE));
+    if (p < 1 || p > totalPages) return;
+    bansPage = p;
+    renderBans();
 }
 
 function renderMaps() {
@@ -683,6 +827,16 @@ document.addEventListener('DOMContentLoaded', () => {
             renderLeaderboard(currentMode);
         });
     }
+
+    // 封禁名单搜索（名称 / SteamID64），搜索时回到第一页
+    const bansSearch = document.getElementById('bansSearch');
+    if (bansSearch) {
+        bansSearch.addEventListener('input', (e) => {
+            bansQuery = e.target.value;
+            bansPage = 1;
+            renderBans();
+        });
+    }
     
     // 模式总开关:点击循环切换 KZT → SKZ → VNL
     const modeSwitch = document.getElementById('modeSwitch');
@@ -707,6 +861,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderLeaderboard(currentMode);
     renderMaps();
     renderServers(serverViewMode);
+    renderBans();
 });
 
 // 全局暴露函数
@@ -717,3 +872,4 @@ window.joinServer = joinServer;
 window.cycleMode = cycleMode;
 window.setMode = setMode;
 window.applyLeaderboardSearch = applyLeaderboardSearch;
+window.gotoBansPage = gotoBansPage;

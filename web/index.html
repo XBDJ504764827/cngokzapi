@@ -23,6 +23,7 @@
                 <a href="#" class="nav-link" data-page="maps">地图</a>
                 <a href="#" class="nav-link" data-page="servers">服务器</a>
                 <a href="#" class="nav-link" data-page="records">最新记录</a>
+                <a href="#" class="nav-link" data-page="bans">封禁名单</a>
             </div>
             <div class="nav-actions">
                 <button class="mode-switch" id="modeSwitch" title="点击切换模式 (KZT → SKZ → VNL)">KZT</button>
@@ -104,30 +105,108 @@
             </div>
         </div>
 
-        <!-- 最新记录页面 -->
+        <!-- 最新记录页面：三列并排，一列一种模式，各列最新 20 条 -->
         <div id="recordsPage" class="page">
             <div class="container">
                 <div class="page-header">
                     <h1 class="page-title">最新记录</h1>
-                    <p class="mode-hint">当前模式:<span class="mode-hint-value" id="recordsModeLabel">KZT</span></p>
                 </div>
-                <div class="records-table">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>玩家</th>
-                                <th>地图</th>
-                                <th>模式</th>
-                                <th>时间</th>
-                                <th>分数</th>
-                                <th>日期</th>
-                            </tr>
-                        </thead>
-                        <tbody id="recentRecords">
-                            <!-- 记录将通过 JS 动态加载 -->
-                        </tbody>
-                    </table>
+                <div class="records-columns">
+                    <section class="records-col">
+                        <div class="records-col-header"><span class="mode-badge">KZT</span><span class="records-col-sub">最新 20 条</span></div>
+                        <div class="records-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>玩家</th>
+                                        <th>地图</th>
+                                        <th>时间</th>
+                                        <th>分数</th>
+                                        <th>日期</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentRecordsKZT">
+                                    <!-- 记录将通过 JS 动态加载 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                    <section class="records-col">
+                        <div class="records-col-header"><span class="mode-badge">SKZ</span><span class="records-col-sub">最新 20 条</span></div>
+                        <div class="records-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>玩家</th>
+                                        <th>地图</th>
+                                        <th>时间</th>
+                                        <th>分数</th>
+                                        <th>日期</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentRecordsSKZ">
+                                    <!-- 记录将通过 JS 动态加载 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                    <section class="records-col">
+                        <div class="records-col-header"><span class="mode-badge">VNL</span><span class="records-col-sub">最新 20 条</span></div>
+                        <div class="records-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>玩家</th>
+                                        <th>地图</th>
+                                        <th>时间</th>
+                                        <th>分数</th>
+                                        <th>日期</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentRecordsVNL">
+                                    <!-- 记录将通过 JS 动态加载 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
                 </div>
+            </div>
+        </div>
+
+        <!-- 封禁名单页面 -->
+        <div id="bansPage" class="page">
+            <div class="container">
+                <div class="page-header leaderboard-header">
+                    <div>
+                        <h1 class="page-title">封禁名单</h1>
+                        <p class="mode-hint">作弊玩家公示：历史成绩保留，但不再参与排名，新成绩不再上传</p>
+                    </div>
+                    <div class="leaderboard-count-badge" id="bansCount"></div>
+                </div>
+                <div class="leaderboard-toolbar">
+                    <input type="text" placeholder="搜索玩家名称 / SteamID64..." class="filter-search" id="bansSearch">
+                </div>
+                <div class="leaderboard-container">
+                    <div class="leaderboard-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>玩家</th>
+                                    <th>封禁理由</th>
+                                    <th>封禁时间</th>
+                                    <th>封禁服务器</th>
+                                    <th>详细数据</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bansData">
+                                <!-- 数据将通过 JS 动态加载 -->
+                            </tbody>
+                        </table>
+                        <div class="leaderboard-empty" id="bansEmpty" hidden>没有匹配的封禁记录。</div>
+                    </div>
+                </div>
+                <div class="pagination" id="bansPagination"></div>
+                <p class="leaderboard-note">封禁数据为模拟占位，后续将接入真实管理数据，字段保持兼容（名称 / SteamID64 / 头像 / 理由 / 时间 / 服务器 / 详细数据）。</p>
             </div>
         </div>
 
