@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CNGOKZ - 中国 GOKZ 社区</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="container nav-container">
+            <div class="nav-brand">
+                <span class="logo">CNGOKZ</span>
+                <span class="logo-subtitle">中国 GOKZ 社区</span>
+            </div>
+            <div class="nav-links">
+                <a href="#" class="nav-link active" data-page="home">首页</a>
+                <a href="#" class="nav-link" data-page="leaderboard">排行榜</a>
+                <a href="#" class="nav-link" data-page="maps">地图</a>
+                <a href="#" class="nav-link" data-page="servers">服务器</a>
+                <a href="#" class="nav-link" data-page="records">最新记录</a>
+            </div>
+            <div class="nav-actions">
+                <button class="mode-switch" id="modeSwitch" title="点击切换模式 (KZT → SKZ → VNL)">KZT</button>
+                <div class="search-box">
+                    <input type="text" placeholder="搜索玩家..." class="search-input" id="playerSearchInput">
+                    <svg class="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M9 17A8 8 0 1 0 9 1a8 8 0 0 0 0 16zM18 18l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <button class="btn-steam" id="loginBtn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2a10 10 0 0 1 10 10 10 10 0 0 1-10 10A10 10 0 0 1 2 12 10 10 0 0 1 12 2m0 18c4.41 0 8-3.59 8-8s-3.59-8-8-8-8 3.59-8 8 3.59 8 8 8m-2-13.5a2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1-2.5 2.5A2.5 2.5 0 0 1 7.5 9a2.5 2.5 0 0 1 2.5-2.5m5 5a2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1-2.5 2.5A2.5 2.5 0 0 1 12.5 14a2.5 2.5 0 0 1 2.5-2.5z"/>
+                    </svg>
+                    Steam 登录
+                </button>
+                <div class="user-chip" id="userChip" hidden>
+                    <img src="https://api.dicebear.com/7.x/identicon/svg?seed=cngokz" alt="头像" class="user-avatar">
+                    <span class="user-name" id="userChipName">玩家</span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容区 -->
+    <main class="main-content">
+        <!-- 首页 -->
+        <div id="homePage" class="page active">
+            <div class="container">
+                <!-- Hero Section -->
+                <section class="hero">
+                    <h1 class="hero-title">中国 GOKZ 社区</h1>
+                    <p class="hero-subtitle">记录你的每一次跳跃,见证技术的极限</p>
+                    <div class="hero-stats">
+                        <div class="stat-card">
+                            <div class="stat-value">1,234</div>
+                            <div class="stat-label">活跃玩家</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">567</div>
+                            <div class="stat-label">地图总数</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">12</div>
+                            <div class="stat-label">在线服务器</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">89,234</div>
+                            <div class="stat-label">总记录数</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 社区介绍 -->
+                <section class="section">
+                    <div class="intro-card">
+                        <h2 class="section-title">关于 CNGOKZ</h2>
+                        <p class="intro-text">
+                            CNGOKZ 是面向中文 KZ 玩家的社区平台,收录接入 CNGOKZ 插件的服务器记录,
+                            提供地图排行榜、玩家资料查询与跨服务器成绩统计。只要服务器安装并连接插件,
+                            玩家在服内完成地图后的成绩会自动上传并参与排名。
+                        </p>
+                        <p class="intro-text">
+                            平台支持 KZT / SKZ / VNL 三种模式独立计分,每种模式拥有各自的排行榜与积分体系,
+                            互不影响。管理员可对记录进行审核删除,对作弊玩家进行封禁处理 —— 被封禁玩家的
+                            历史成绩不会从记录中移除,但不再计入其他玩家的排名比较,其新成绩也不会再上传。
+                        </p>
+                    </div>
+                </section>
+
+                <!-- 公告 -->
+                <section class="section">
+                    <div class="section-header">
+                        <h2 class="section-title">最新公告</h2>
+                    </div>
+                    <div class="announcement-list" id="announcementList">
+                        <!-- 公告将通过 JS 动态加载 -->
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <!-- 最新记录页面 -->
+        <div id="recordsPage" class="page">
+            <div class="container">
+                <div class="page-header">
+                    <h1 class="page-title">最新记录</h1>
+                    <p class="mode-hint">当前模式:<span class="mode-hint-value" id="recordsModeLabel">KZT</span></p>
+                </div>
+                <div class="records-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>玩家</th>
+                                <th>地图</th>
+                                <th>模式</th>
+                                <th>时间</th>
+                                <th>分数</th>
+                                <th>日期</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentRecords">
+                            <!-- 记录将通过 JS 动态加载 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 排行榜页面 -->
+        <div id="leaderboardPage" class="page">
+            <div class="container">
+                <div class="page-header">
+                    <h1 class="page-title">玩家排行榜</h1>
+                    <p class="mode-hint">当前模式:<span class="mode-hint-value" id="leaderboardModeLabel">KZT</span> · 点击导航栏模式按钮切换</p>
+                </div>
+                <div class="leaderboard-container">
+                    <div class="leaderboard-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>排名</th>
+                                    <th>玩家</th>
+                                    <th>完成地图</th>
+                                    <th>总分数</th>
+                                    <th>平均分</th>
+                                    <th>记录数</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leaderboardData">
+                                <!-- 数据将通过 JS 动态加载 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 地图列表页面 -->
+        <div id="mapsPage" class="page">
+            <div class="container">
+                <div class="page-header">
+                    <h1 class="page-title">地图列表</h1>
+                    <div class="map-filters">
+                        <select class="filter-select">
+                            <option>所有难度</option>
+                            <option>Very Easy</option>
+                            <option>Easy</option>
+                            <option>Medium</option>
+                            <option>Hard</option>
+                            <option>Very Hard</option>
+                            <option>Extreme</option>
+                            <option>Death</option>
+                        </select>
+                        <input type="text" placeholder="搜索地图..." class="filter-search">
+                    </div>
+                </div>
+                <div class="maps-grid" id="mapsGrid">
+                    <!-- 地图卡片将通过 JS 动态加载 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 服务器页面 -->
+        <div id="serversPage" class="page">
+            <div class="container">
+                <div class="page-header">
+                    <h1 class="page-title">服务器列表</h1>
+                    <div class="view-switcher">
+                        <button class="view-btn active" data-view="grid" title="网格视图">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                                <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+                            </svg>
+                        </button>
+                        <button class="view-btn" data-view="list" title="列表视图">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+                                <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
+                                <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="servers-container" id="serversContainer">
+                    <!-- 服务器将通过 JS 动态加载 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 地图详情页面 -->
+        <div id="mapDetailPage" class="page">
+            <div class="container">
+                <button class="btn-back" onclick="navigateTo('maps')">← 返回</button>
+                
+                <div class="map-detail-hero">
+                    <div class="map-detail-image" id="mapDetailImage">
+                        <!-- 地图图片将在此显示 -->
+                    </div>
+                    <div class="map-detail-info-panel">
+                        <h1 class="map-name" id="mapName">kz_map_name</h1>
+                        <div class="map-meta-grid">
+                            <div class="meta-item">
+                                <span class="meta-label">难度</span>
+                                <span class="meta-value" id="mapTier">Tier 3</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">作者</span>
+                                <span class="meta-value" id="mapAuthor">MapMaker</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">类型</span>
+                                <span class="meta-value" id="mapType">线性</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">完成次数</span>
+                                <span class="meta-value" id="mapCompletions">1,234</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">平均时间</span>
+                                <span class="meta-value time-value" id="mapAvgTime">02:45.32</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">世界纪录</span>
+                                <span class="meta-value time-value" id="mapWR">01:23.45</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2 class="section-title">排行榜 TOP 100 <span class="mode-tag" id="mapModeLabel">KZT</span></h2>
+                    <div class="map-leaderboard">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>排名</th>
+                                    <th>玩家</th>
+                                    <th>时间</th>
+                                    <th>分数</th>
+                                    <th>日期</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mapLeaderboardData">
+                                <!-- 数据将通过 JS 动态加载 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 玩家个人资料页面 -->
+        <div id="profilePage" class="page">
+            <div class="container">
+                <div class="profile-header">
+                    <img src="https://api.dicebear.com/7.x/identicon/svg?seed=player" alt="头像" class="profile-avatar" id="profileAvatar">
+                    <div class="profile-info">
+                        <h1 class="profile-name" id="profileName">玩家名称</h1>
+                        <div class="profile-rank">
+                            全球排名 <span class="mode-hint-value" id="profileModeLabel">KZT</span>: <span class="rank-number" id="profileRank">#123</span>
+                        </div>
+                        <div class="profile-steam">
+                            <span id="profileSteamID">STEAM_0:1:12345678</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="profile-stats-grid">
+                    <div class="profile-stat-card">
+                        <div class="profile-stat-label">总分数</div>
+                        <div class="profile-stat-value" id="profilePoints">12,345</div>
+                    </div>
+                    <div class="profile-stat-card">
+                        <div class="profile-stat-label">完成地图</div>
+                        <div class="profile-stat-value" id="profileMapsCompleted">234</div>
+                    </div>
+                    <div class="profile-stat-card">
+                        <div class="profile-stat-label">记录总数</div>
+                        <div class="profile-stat-value" id="profileTotalRecords">567</div>
+                    </div>
+                    <div class="profile-stat-card">
+                        <div class="profile-stat-label">平均分</div>
+                        <div class="profile-stat-value" id="profileAvgPoints">52.8</div>
+                    </div>
+                </div>
+                <div class="section">
+                    <h2 class="section-title">最近完成的地图</h2>
+                    <div class="profile-maps-grid" id="profileRecentMaps">
+                        <!-- 地图将通过 JS 动态加载 -->
+                    </div>
+                </div>
+                <div class="section">
+                    <h2 class="section-title">个人最佳记录</h2>
+                    <div class="records-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>地图</th>
+                                    <th>模式</th>
+                                    <th>时间</th>
+                                    <th>排名</th>
+                                    <th>分数</th>
+                                    <th>日期</th>
+                                </tr>
+                            </thead>
+                            <tbody id="profileRecordsData">
+                                <!-- 记录将通过 JS 动态加载 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>CNGOKZ</h3>
+                    <p>中国 GOKZ 社区 - 记录你的每一次突破</p>
+                </div>
+                <div class="footer-section">
+                    <h4>快速链接</h4>
+                    <a href="#">关于我们</a>
+                    <a href="#">规则说明</a>
+                    <a href="#">API 文档</a>
+                </div>
+                <div class="footer-section">
+                    <h4>社区</h4>
+                    <a href="#">QQ 群</a>
+                    <a href="#">Discord</a>
+                    <a href="#">GitHub</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 CNGOKZ. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>

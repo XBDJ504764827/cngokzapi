@@ -5,6 +5,9 @@ use std::net::SocketAddr;
 pub struct AppConfig {
     pub host: String,
     pub port: u16,
+    /// 静态网站目录，默认 `web`（workspace 根下）。
+    /// 二进制位置变化时可用 WEB_DIR 覆盖，例如 WEB_DIR=/srv/cngokz/web。
+    pub web_dir: String,
 }
 
 impl AppConfig {
@@ -15,6 +18,7 @@ impl AppConfig {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(3000),
+            web_dir: std::env::var("WEB_DIR").unwrap_or_else(|_| "web".to_string()),
         }
     }
 

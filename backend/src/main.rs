@@ -16,10 +16,10 @@ async fn main() {
         .init();
 
     let config = config::AppConfig::from_env();
-    let app = router::create_router();
+    let app = router::create_router_with_web_dir(&config.web_dir);
 
     let addr = config.bind_addr();
-    tracing::info!("listening on http://{}", addr);
+    tracing::info!("listening on http://{}, web_dir={}", addr, config.web_dir);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
