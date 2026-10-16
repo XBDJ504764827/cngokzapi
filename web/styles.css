@@ -552,9 +552,32 @@ tr:hover td {
     min-width: 160px;
 }
 
-.leaderboard-count {
-    color: var(--text-muted);
-    font-weight: 500;
+.leaderboard-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.leaderboard-header .page-title {
+    margin-bottom: 8px;
+}
+
+.leaderboard-header .mode-hint {
+    margin-bottom: 2px;
+}
+
+.leaderboard-count-badge {
+    flex-shrink: 0;
+    padding: 8px 14px;
+    margin-bottom: 4px;
+    background-color: var(--accent-soft);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    white-space: nowrap;
 }
 
 .lb-player {
@@ -622,6 +645,15 @@ tr:hover td {
 
     .lb-player {
         min-width: 0;
+    }
+
+    .leaderboard-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .leaderboard-count-badge {
+        align-self: flex-start;
     }
 }
 
@@ -1344,10 +1376,6 @@ tr:hover td {
 }
 
 /* ========== 服务器信息补全样式 ========== */
-.server-ip {
-    font-family: 'SF Mono', 'Courier New', monospace;
-    font-size: 12px;
-}
 .server-card-grid .server-players {
     margin-top: 4px;
 }

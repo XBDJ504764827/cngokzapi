@@ -219,7 +219,7 @@ const mockData = {
 // ========== 全局状态 ==========
 const MODES = ['KZT', 'SKZ', 'VNL'];
 let currentMode = 'KZT';  // 全站模式总开关,默认 KZT
-let serverViewMode = 'grid';  // 服务器视图模式: grid / list
+let serverViewMode = 'list';  // 服务器视图模式: grid / list，默认列式（列表）
 let currentMapId = null;  // 当前打开的地图详情 ID(用于模式切换时刷新榜单)
 
 // 模式总开关:点击循环切换 KZT → SKZ → VNL → KZT
@@ -326,7 +326,11 @@ function renderLeaderboard(mode = 'KZT') {
 
     const { all, rows } = getFilteredLeaderboard(mode);
     const countEl = document.getElementById('leaderboardCount');
-    if (countEl) countEl.textContent = ' · 共 ' + rows.length + ' / ' + all.length + ' 人';
+    if (countEl) {
+        countEl.textContent = rows.length === all.length
+            ? '共 ' + all.length + ' 人'
+            : '筛出 ' + rows.length + ' 人 / 共 ' + all.length + ' 人';
+    }
     const emptyEl = document.getElementById('leaderboardEmpty');
     if (emptyEl) emptyEl.hidden = rows.length !== 0;
 
@@ -424,10 +428,6 @@ function renderServers(viewMode = 'grid') {
                         <span class="server-info-label">玩家</span>
                         <span class="server-info-value">${server.players.length}/${server.maxPlayers}</span>
                     </div>
-                    <div class="server-info-row">
-                        <span class="server-info-label">地址</span>
-                        <span class="server-info-value server-ip">${server.ip}</span>
-                    </div>
                     <div class="server-players">
                         <div class="server-players-title">在线玩家</div>
                         <div class="server-players-list">${playerChips(server.players)}</div>
@@ -444,7 +444,7 @@ function renderServers(viewMode = 'grid') {
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M13.8 12H3"/>
                             </svg>
-                            加入游戏
+                            加入
                         </button>
                     </div>
                 </div>
@@ -468,8 +468,6 @@ function renderServers(viewMode = 'grid') {
                         <span>${server.region}</span>
                         <span>·</span>
                         <span>${server.players.length}/${server.maxPlayers} 玩家</span>
-                        <span>·</span>
-                        <span class="server-ip">${server.ip}</span>
                     </div>
                     <div class="server-players-list">${playerChips(server.players)}</div>
                 </div>
@@ -485,7 +483,7 @@ function renderServers(viewMode = 'grid') {
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M13.8 12H3"/>
                         </svg>
-                        加入游戏
+                        加入
                     </button>
                 </div>
             </div>
@@ -708,7 +706,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderRecentRecords();
     renderLeaderboard(currentMode);
     renderMaps();
-    renderServers('grid');
+    renderServers(serverViewMode);
 });
 
 // 全局暴露函数
