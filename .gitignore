@@ -1,7 +1,7 @@
 # Rust
 /target/
 **/target/
-Cargo.lock
+# 注意：本仓库是二进制 workspace，Cargo.lock 需要提交以锁定可复现构建。
 *.rs.bk
 *.pdb
 

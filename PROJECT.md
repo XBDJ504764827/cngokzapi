@@ -144,8 +144,9 @@ cngokzapi/
 
 ## 9. 当前状态与下一步
 
-- 当前：骨架初始化完成（2026-10-16），等用户推送到 GitHub。
-- 下一步（推送后，按序）：
-  1. `cargo new` / workspace 初始化，后端 Hello World + 健康检查 `GET /api/v1/health`。
+- 当前：第一步完成（2026-10-16，`develop`）：workspace + `cngokz-backend` 可运行，
+  `GET /api/v1/health` 与 `cargo test/clippy` 均通过。`web/` 仍为占位。
+- 下一步（按序）：
+  1. ~~`cargo new` / workspace 初始化，后端 Hello World + 健康检查 `GET /api/v1/health`。~~ ✅ 已完成
   2. `web/` 1:1 复刻 `~/cngokz-web`，Axum 托管静态，对比验证一模一样。
   3. 设计迁移 SQL + 上述核心 API，`app.js` 从模拟数据切到真实接口。
