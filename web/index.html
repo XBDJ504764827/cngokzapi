@@ -136,7 +136,22 @@
             <div class="container">
                 <div class="page-header">
                     <h1 class="page-title">玩家排行榜</h1>
-                    <p class="mode-hint">当前模式:<span class="mode-hint-value" id="leaderboardModeLabel">KZT</span> · 点击导航栏模式按钮切换</p>
+                    <p class="mode-hint">当前模式:<span class="mode-hint-value" id="leaderboardModeLabel">KZT</span> · 点击导航栏模式按钮切换<span class="leaderboard-count" id="leaderboardCount"></span></p>
+                </div>
+                <div class="leaderboard-toolbar">
+                    <input type="text" placeholder="搜索玩家名称 / SteamID64..." class="filter-search" id="leaderboardSearch">
+                    <select class="filter-select" id="leaderboardActivityFilter">
+                        <option value="all">全部活跃度</option>
+                        <option value="7">近 7 天有游玩</option>
+                        <option value="30">近 30 天有游玩</option>
+                        <option value="inactive">超过 30 天未玩</option>
+                    </select>
+                    <select class="filter-select" id="leaderboardSortFilter">
+                        <option value="totalPoints">按总分数排序</option>
+                        <option value="mapsCompleted">按完成地图排序</option>
+                        <option value="avgPoints">按平均分排序</option>
+                        <option value="records">按记录数排序</option>
+                    </select>
                 </div>
                 <div class="leaderboard-container">
                     <div class="leaderboard-table">
@@ -149,14 +164,17 @@
                                     <th>总分数</th>
                                     <th>平均分</th>
                                     <th>记录数</th>
+                                    <th>最近游玩</th>
                                 </tr>
                             </thead>
                             <tbody id="leaderboardData">
                                 <!-- 数据将通过 JS 动态加载 -->
                             </tbody>
                         </table>
+                        <div class="leaderboard-empty" id="leaderboardEmpty" hidden>没有匹配的玩家，换个关键词或筛选条件试试。</div>
                     </div>
                 </div>
+                <p class="leaderboard-note">头像与数据为模拟占位，后续将从外部网站挖掘真实数据填入，届时字段保持兼容（名称 / SteamID64 / 头像 / 最近游玩）。</p>
             </div>
         </div>
 

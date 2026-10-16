@@ -1,3 +1,115 @@
+// ========== 排行榜模拟数据生成（占位，后续替换为外部挖掘的真实数据） ==========
+// 真实数据接入时只需替换 buildMockLeaderboard 的返回值，条目字段保持兼容：
+// { rank, player, steamId64, avatar, mapsCompleted, totalPoints, avgPoints, records, lastPlayed, lastPlayedDaysAgo }
+const LEADERBOARD_SIZE = 120;
+const LEADERBOARD_MODE_INDEX = { KZT: 0, SKZ: 1, VNL: 2 };
+const LEADERBOARD_HEAD = {
+    KZT: [
+        { player: 'ProGamer', mapsCompleted: 234, totalPoints: 45678, avgPoints: 195.2, records: 567 },
+        { player: 'SpeedRunner', mapsCompleted: 221, totalPoints: 43210, avgPoints: 195.5, records: 534 },
+        { player: 'TechMaster', mapsCompleted: 198, totalPoints: 39456, avgPoints: 199.3, records: 489 }
+    ],
+    SKZ: [
+        { player: 'JumpGod', mapsCompleted: 198, totalPoints: 38456, avgPoints: 194.2, records: 512 },
+        { player: 'ProGamer', mapsCompleted: 187, totalPoints: 35678, avgPoints: 190.8, records: 478 },
+        { player: 'BunnyhopKing', mapsCompleted: 176, totalPoints: 33456, avgPoints: 190.1, records: 423 }
+    ],
+    VNL: [
+        { player: 'TechMaster', mapsCompleted: 176, totalPoints: 32456, avgPoints: 184.4, records: 445 },
+        { player: 'KZ_Master', mapsCompleted: 165, totalPoints: 30123, avgPoints: 182.6, records: 412 },
+        { player: 'ClimbFan', mapsCompleted: 154, totalPoints: 28789, avgPoints: 186.9, records: 387 }
+    ]
+};
+const LEADERBOARD_NAME_POOL = [
+    'JumpGod', 'BunnyhopKing', 'StrafePro', 'KZ_Master', 'ClimbFan', 'NewbieMaster',
+    'AirControl', 'StrafeKing', 'BhopGod', 'KZLegend', 'SurfPro', 'ClimbExpert',
+    'TriggerHappy', 'EdgeBug', 'LongJump', 'Bhopper', 'SurfMaster', 'KreedzFan',
+    'TimerHunter', 'Checkpoint', 'NoScope', 'PreStrafe', 'W Strafe', 'SlideMaster',
+    'CrouchBug', 'LadderKing', 'RampSlayer', 'BlockMaster', 'GapJumper', 'TechNinja'
+];
+
+// 确定性伪随机，保证每次打开榜单一致，方便对照验证
+function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function () {
+        a |= 0;
+        a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+// 模拟头像：与站内其他头像同源（dicebear identicon），后续替换为 Steam 真实头像 URL
+function mockAvatar(seedName) {
+    return 'https://api.dicebear.com/7.x/identicon/svg?seed=' + encodeURIComponent(seedName);
+}
+
+// 模拟 SteamID64：17 位、76561198 开头，后续替换为真实 SteamID64
+function mockSteamId64(mode, i) {
+    const num = 100000000 + LEADERBOARD_MODE_INDEX[mode] * 20000000 + i * 7919;
+    return '76561198' + String(num).padStart(9, '0');
+}
+
+function daysAgoToDate(days) {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    return d.toISOString().slice(0, 10);
+}
+
+function formatDaysAgo(days) {
+    if (days <= 0) return '今天';
+    if (days === 1) return '昨天';
+    return days + '天前';
+}
+
+function buildMockLeaderboard(mode) {
+    const rng = mulberry32(1000 + LEADERBOARD_MODE_INDEX[mode] * 97);
+    const head = LEADERBOARD_HEAD[mode] || LEADERBOARD_HEAD.KZT;
+    const rows = head.map((h, i) => {
+        const days = Math.floor(rng() * 10); // 头部玩家默认近 10 天活跃
+        return {
+            rank: i + 1,
+            player: h.player,
+            steamId64: mockSteamId64(mode, i),
+            avatar: mockAvatar(mode + ':' + h.player),
+            mapsCompleted: h.mapsCompleted,
+            totalPoints: h.totalPoints,
+            avgPoints: h.avgPoints,
+            records: h.records,
+            lastPlayedDaysAgo: days,
+            lastPlayed: daysAgoToDate(days)
+        };
+    });
+    let points = head[head.length - 1].totalPoints;
+    // 生成池剔除头部已用名称，避免重名（各模式头部不同，需按模式过滤）
+    const pool = LEADERBOARD_NAME_POOL.filter((n) => !head.some((h) => h.player === n));
+    for (let i = head.length; i < LEADERBOARD_SIZE; i++) {
+        const idx = i - head.length;
+        const base = pool[idx % pool.length];
+        const suffix = idx >= pool.length ? '_' + (Math.floor(idx / pool.length) + 1) : '';
+        const name = base + suffix;
+        points = Math.max(1000, points - Math.floor(80 + rng() * 320));
+        const maps = Math.max(5, Math.floor(rows[i - 1].mapsCompleted - rng() * 4));
+        const avg = Math.round((150 + rng() * 48) * 10) / 10;
+        const records = Math.max(12, Math.floor(rows[i - 1].records - rng() * 6));
+        const days = Math.floor(rng() * 61); // 0~60 天前，保证各活跃度筛选项都有数据
+        rows.push({
+            rank: i + 1,
+            player: name,
+            steamId64: mockSteamId64(mode, i),
+            avatar: mockAvatar(mode + ':' + name),
+            mapsCompleted: maps,
+            totalPoints: points,
+            avgPoints: avg,
+            records: records,
+            lastPlayedDaysAgo: days,
+            lastPlayed: daysAgoToDate(days)
+        });
+    }
+    return rows;
+}
+
 // ========== 模拟数据 ==========
 const mockData = {
     servers: [
@@ -48,23 +160,11 @@ const mockData = {
         { player: 'NewbieMaster', map: 'kz_easy_beta', mode: 'VNL', time: '00:58.31', points: 640, date: '2024-01-12' }
     ],
 
-    // KZT / SKZ / VNL 三个独立排行榜(各模式独立计分、独立排序)
+    // KZT / SKZ / VNL 三个独立排行榜(各模式独立计分、独立排序，每榜 120 人模拟数据)
     leaderboards: {
-        KZT: [
-            { rank: 1, player: 'ProGamer', mapsCompleted: 234, totalPoints: 45678, avgPoints: 195.2, records: 567 },
-            { rank: 2, player: 'SpeedRunner', mapsCompleted: 221, totalPoints: 43210, avgPoints: 195.5, records: 534 },
-            { rank: 3, player: 'TechMaster', mapsCompleted: 198, totalPoints: 39456, avgPoints: 199.3, records: 489 }
-        ],
-        SKZ: [
-            { rank: 1, player: 'JumpGod', mapsCompleted: 198, totalPoints: 38456, avgPoints: 194.2, records: 512 },
-            { rank: 2, player: 'ProGamer', mapsCompleted: 187, totalPoints: 35678, avgPoints: 190.8, records: 478 },
-            { rank: 3, player: 'BunnyhopKing', mapsCompleted: 176, totalPoints: 33456, avgPoints: 190.1, records: 423 }
-        ],
-        VNL: [
-            { rank: 1, player: 'TechMaster', mapsCompleted: 176, totalPoints: 32456, avgPoints: 184.4, records: 445 },
-            { rank: 2, player: 'KZ_Master', mapsCompleted: 165, totalPoints: 30123, avgPoints: 182.6, records: 412 },
-            { rank: 3, player: 'ClimbFan', mapsCompleted: 154, totalPoints: 28789, avgPoints: 186.9, records: 387 }
-        ]
+        KZT: buildMockLeaderboard('KZT'),
+        SKZ: buildMockLeaderboard('SKZ'),
+        VNL: buildMockLeaderboard('VNL')
     },
     
     maps: [
@@ -199,28 +299,71 @@ function renderRecentRecords() {
     `).join('');
 }
 
+// ========== 排行榜状态（搜索 / 筛选 / 排序，筛选条件在模式切换时保留） ==========
+let leaderboardQuery = '';
+let leaderboardActivity = 'all'; // all | 7 | 30 | inactive
+let leaderboardSort = 'totalPoints'; // totalPoints | mapsCompleted | avgPoints | records
+
+function getFilteredLeaderboard(mode) {
+    const all = mockData.leaderboards[mode] || mockData.leaderboards.KZT;
+    const q = leaderboardQuery.trim().toLowerCase();
+    let rows = all.filter(entry => {
+        // 名称模糊匹配（不区分大小写）或 SteamID64 子串匹配
+        if (q && !(entry.player.toLowerCase().includes(q) || entry.steamId64.includes(q))) return false;
+        if (leaderboardActivity === '7' && entry.lastPlayedDaysAgo > 7) return false;
+        if (leaderboardActivity === '30' && entry.lastPlayedDaysAgo > 30) return false;
+        if (leaderboardActivity === 'inactive' && entry.lastPlayedDaysAgo <= 30) return false;
+        return true;
+    });
+    const key = leaderboardSort;
+    rows = rows.slice().sort((a, b) => b[key] - a[key]);
+    return { all, rows };
+}
+
 function renderLeaderboard(mode = 'KZT') {
     const leaderboardData = document.getElementById('leaderboardData');
     if (!leaderboardData) return;
-    
-    const data = mockData.leaderboards[mode] || mockData.leaderboards.KZT;
-    leaderboardData.innerHTML = data.map(entry => {
+
+    const { all, rows } = getFilteredLeaderboard(mode);
+    const countEl = document.getElementById('leaderboardCount');
+    if (countEl) countEl.textContent = ' · 共 ' + rows.length + ' / ' + all.length + ' 人';
+    const emptyEl = document.getElementById('leaderboardEmpty');
+    if (emptyEl) emptyEl.hidden = rows.length !== 0;
+
+    leaderboardData.innerHTML = rows.map(entry => {
         let rankClass = '';
         if (entry.rank === 1) rankClass = 'top-1';
         else if (entry.rank === 2) rankClass = 'top-2';
         else if (entry.rank === 3) rankClass = 'top-3';
-        
+
         return `
             <tr>
                 <td><span class="rank-number ${rankClass}">#${entry.rank}</span></td>
-                <td><a href="#" class="player-link" onclick="navigateTo('profile'); return false;">${entry.player}</a></td>
+                <td>
+                    <div class="lb-player">
+                        <img class="lb-avatar" src="${entry.avatar}" alt="${entry.player} 的头像" loading="lazy" onerror="this.style.visibility='hidden'">
+                        <div class="lb-id">
+                            <a href="#" class="player-link" onclick="navigateTo('profile'); return false;">${entry.player}</a>
+                            <span class="lb-steam">${entry.steamId64}</span>
+                        </div>
+                    </div>
+                </td>
                 <td>${entry.mapsCompleted}</td>
                 <td class="points-value">${entry.totalPoints.toLocaleString()}</td>
                 <td>${entry.avgPoints.toFixed(1)}</td>
                 <td>${entry.records}</td>
+                <td><span class="lb-last-active">${formatDaysAgo(entry.lastPlayedDaysAgo)}</span><span class="lb-last-date">${entry.lastPlayed}</span></td>
             </tr>
         `;
     }).join('');
+}
+
+// 外部入口：导航栏搜索框复用排行榜搜索（按名称 / SteamID64），并跳到排行榜页
+function applyLeaderboardSearch(query) {
+    leaderboardQuery = query || '';
+    const input = document.getElementById('leaderboardSearch');
+    if (input && input.value !== leaderboardQuery) input.value = leaderboardQuery;
+    renderLeaderboard(currentMode);
 }
 
 function renderMaps() {
@@ -505,19 +648,41 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // 玩家搜索
+    // 导航栏玩家搜索：按名称 / SteamID64 在排行榜中定位，不再是弹窗模拟
     const searchInput = document.getElementById('playerSearchInput');
     if (searchInput) {
         searchInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 const query = searchInput.value.trim();
                 if (query) {
-                    alert(`搜索玩家: ${query}\n(这是模拟功能,实际需要连接后端API)`);
-                    renderProfile();
-                    navigateTo('profile');
+                    applyLeaderboardSearch(query);
+                    navigateTo('leaderboard');
                     searchInput.value = '';
                 }
             }
+        });
+    }
+
+    // 排行榜页内搜索 / 筛选 / 排序
+    const lbSearch = document.getElementById('leaderboardSearch');
+    if (lbSearch) {
+        lbSearch.addEventListener('input', (e) => {
+            leaderboardQuery = e.target.value;
+            renderLeaderboard(currentMode);
+        });
+    }
+    const lbActivity = document.getElementById('leaderboardActivityFilter');
+    if (lbActivity) {
+        lbActivity.addEventListener('change', (e) => {
+            leaderboardActivity = e.target.value;
+            renderLeaderboard(currentMode);
+        });
+    }
+    const lbSort = document.getElementById('leaderboardSortFilter');
+    if (lbSort) {
+        lbSort.addEventListener('change', (e) => {
+            leaderboardSort = e.target.value;
+            renderLeaderboard(currentMode);
         });
     }
     
@@ -553,3 +718,4 @@ window.copyServerIP = copyServerIP;
 window.joinServer = joinServer;
 window.cycleMode = cycleMode;
 window.setMode = setMode;
+window.applyLeaderboardSearch = applyLeaderboardSearch;

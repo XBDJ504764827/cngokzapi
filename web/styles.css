@@ -535,6 +535,96 @@ tr:hover td {
     color: #fff;
 }
 
+.leaderboard-toolbar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.leaderboard-toolbar .filter-search {
+    flex: 2;
+    min-width: 220px;
+}
+
+.leaderboard-toolbar .filter-select {
+    flex: 1;
+    min-width: 160px;
+}
+
+.leaderboard-count {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.lb-player {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 200px;
+}
+
+.lb-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-subtle);
+    flex-shrink: 0;
+}
+
+.lb-id {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.4;
+}
+
+.lb-steam {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: 'SF Mono', 'Courier New', monospace;
+}
+
+.lb-last-active {
+    display: block;
+    font-weight: 600;
+}
+
+.lb-last-date {
+    display: block;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.leaderboard-empty {
+    padding: 32px 16px;
+    text-align: center;
+    font-size: 14px;
+    color: var(--text-muted);
+}
+
+.leaderboard-note {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+@media (max-width: 720px) {
+    .leaderboard-toolbar {
+        flex-direction: column;
+    }
+
+    .leaderboard-toolbar .filter-search,
+    .leaderboard-toolbar .filter-select {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .lb-player {
+        min-width: 0;
+    }
+}
+
 /* ========== 地图样式 ========== */
 .map-filters {
     display: flex;

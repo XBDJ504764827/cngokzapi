@@ -10,6 +10,27 @@
 
 ---
 
+## 2026-10-16 排行榜加厚（头像/最近游玩/100+人/搜索筛选）
+
+- 背景：排行榜每榜仅 3 条、无头像、无最近游玩、搜索还是弹窗模拟，需先用模拟数据把榜单做厚，后续再从外部网站挖掘真实数据填入。
+- 为什么这样做：
+  - 每模式生成 120 条确定性模拟数据（固定种子伪随机，每次打开一致，方便对照验证），头部保留 ProGamer 等熟人，前 3 名排名色保留。
+  - 字段按真实数据先行兼容：`rank / player / steamId64（17 位 76561198 开头）/ avatar（dicebear，与站内头像同源）/ mapsCompleted / totalPoints / avgPoints / records / lastPlayed / lastPlayedDaysAgo`，真实数据接入时只换 `buildMockLeaderboard` 返回值（注释已标明）。
+  - 搜索支持名称模糊（不区分大小写）+ SteamID64 子串；活跃度筛（近 7 / 30 天、超 30 天未玩）用 `lastPlayedDaysAgo` 判定；排序支持总分/完成地图/平均分/记录数；筛选条件在模式切换时保留；导航栏搜索框改为联动定位到排行榜（去掉弹窗模拟）。
+  - 生成池按模式剔除头部重名，保证每榜 120 个唯一名称（修过 SKZ 重名导致单测失败的问题）。
+- 变更内容：
+  - `web/index.html`：排行榜表头新增玩家（头像+名称+SteamID64）与最近游玩列，新增搜索框 + 活跃度/排序下拉 + 计数 + 空态 + 模拟数据说明。
+  - `web/app.js`：新增 `LEADERBOARD_SIZE=120`、`mulberry32`、`mockAvatar`、`mockSteamId64`、`buildMockLeaderboard`、`getFilteredLeaderboard`、`applyLeaderboardSearch`；重写 `renderLeaderboard`；导航栏搜索联动排行榜。
+  - `web/styles.css`：新增 `.leaderboard-toolbar`、`.lb-player`、`.lb-avatar`、`.lb-steam`、`.lb-last-*`、`.leaderboard-empty`、`.leaderboard-note` 及移动端堆叠。
+- 涉及文件：
+  - 修改：`web/index.html`、`web/app.js`、`web/styles.css`、`PROJECT.md`、`CHANGELOG.md`
+- 数据库与 API 变化：无（仍为前端模拟数据阶段；后端 `/api/v1/health` 与静态托管不变）。
+- 测试与结果（2026-10-16）：
+  - `node --check web/app.js`：通过；ID/CSS 对照脚本：6 个 ID 与 10 个类名齐备，`leaderboardData` 无重复。
+  - 逻辑单测（vm 沙箱，31 断言全过）：三榜各 120 人、名称唯一、排名连续、总分降序、SteamID64 格式、头像同源、游玩 0~60 天；名称/SteamID64 搜索命中；三档活跃度筛选分别命中 13 / 53 / 67 人；排序切换有序；无匹配返回空。
+  - `cargo test`：通过（2 passed）；`cargo clippy --all-targets -- -D warnings`：通过；`cargo build`：通过。
+  - 运行时验证（`PORT=18083`）：`curl /api/v1/health` 正常；`curl /` 与 `/app.js` 与仓库文件逐字节一致。
+
 ## 2026-10-16 默认监听全网段（局域网可访问）
 
 - 背景：开发机为 192.168.0.101，服务需供局域网内机器访问，原默认 `HOST=127.0.0.1` 只允许回环，局域网打不开页面。
