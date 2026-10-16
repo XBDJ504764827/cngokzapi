@@ -13,7 +13,9 @@ pub struct AppConfig {
 impl AppConfig {
     pub fn from_env() -> Self {
         Self {
-            host: std::env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),
+            // 默认监听全网段，局域网可经 http://192.168.0.101:PORT 访问；
+            // 如只想本机访问，可设 HOST=127.0.0.1；如只想固定网卡，可设 HOST=192.168.0.101。
+            host: std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string()),
             port: std::env::var("PORT")
                 .ok()
                 .and_then(|v| v.parse().ok())

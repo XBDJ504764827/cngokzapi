@@ -2,7 +2,19 @@
 
 CNGOKZ（中国 GOKZ 社区）后端 + 网站项目。
 
-> 当前阶段：仓库骨架已初始化，等待首次推送到 GitHub 后再开始实际开发。
+> 当前阶段：`develop` 上已完成后端骨架 + 网站 1:1 复刻（Axum 托管），默认监听全网段，局域网可直接访问。
+
+## 本地运行（局域网）
+
+```bash
+cargo run -p cngokz-backend
+# 默认监听 0.0.0.0:3000（含 192.168.0.101），局域网内访问：
+#   http://192.168.0.101:3000/            网站（与 ~/cngokz-web 一模一样）
+#   http://192.168.0.101:3000/api/v1/health  健康检查
+# 仅本机：HOST=127.0.0.1 cargo run -p cngokz-backend
+# 换端口：PORT=8080 cargo run -p cngokz-backend
+# 换静态目录：WEB_DIR=/srv/cngokz/web cargo run -p cngokz-backend
+```
 
 ## 分支说明
 
@@ -13,8 +25,8 @@ CNGOKZ（中国 GOKZ 社区）后端 + 网站项目。
 
 ```text
 cngokzapi/
-├── backend/      # Rust 后端（预留，推送后开始开发）
-├── web/          # 网站（预留，需与 ~/cngokz-web 示例一模一样）
+├── backend/      # Rust 后端（Axum，对应 crate cngokz-backend）
+├── web/          # 网站静态资源（与 ~/cngokz-web 一模一样，由后端托管）
 ├── docs/         # 文档（预留）
 ├── scripts/      # 脚本（预留）
 ├── migrations/   # 数据库迁移（预留）
@@ -22,8 +34,6 @@ cngokzapi/
 ├── CHANGELOG.md  # 开发日志
 └── README.md
 ```
-
-`backend/`、`web/` 等目录目前只有占位文件，推送完成后才会放入真实代码。
 
 ## 前端示例
 
