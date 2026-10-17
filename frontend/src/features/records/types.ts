@@ -2,6 +2,7 @@
 
 export interface RecordEntry {
   player: string
+  steam_id64: string
   map: string
   mode: string
   time: string

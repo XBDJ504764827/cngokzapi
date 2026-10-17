@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, h, ref, watch } from 'vue'
-import { NAlert, NAvatar, NDataTable, NInput, NSelect, NSpin, NTag } from 'naive-ui'
+import { NAlert, NDataTable, NEmpty, NInput, NSelect, NSpin, NTag } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
+import PlayerCell from '@/components/PlayerCell.vue'
 import { useApi } from '@/composables/useApi'
 import { useAppStore } from '@/stores/app'
 import { formatDaysAgo, formatNumber } from '@/utils/format'
@@ -33,14 +34,16 @@ const sortOptions: { label: string; value: SortKey }[] = [
   { label: '按记录数排序', value: 'records' },
 ]
 
+// 活跃度筛选只对"本地已同步到成绩"的玩家有意义；未同步（null）一律不参与活跃度命中
 const rows = computed<LeaderboardEntry[]>(() => {
   const all = data.value ?? []
   const q = query.value.trim().toLowerCase()
   const filtered = all.filter((e) => {
     if (q && !e.player.toLowerCase().includes(q) && !e.steam_id64.includes(q)) return false
-    if (activity.value === '7' && e.last_played_days_ago > 7) return false
-    if (activity.value === '30' && e.last_played_days_ago > 30) return false
-    if (activity.value === 'inactive' && e.last_played_days_ago <= 30) return false
+    const days = e.last_played_days_ago
+    if (activity.value === '7' && (days === null || days > 7)) return false
+    if (activity.value === '30' && (days === null || days > 30)) return false
+    if (activity.value === 'inactive' && (days === null || days <= 30)) return false
     return true
   })
   return [...filtered].sort((a, b) => b[sortKey.value] - a[sortKey.value])
@@ -65,19 +68,17 @@ const columns: DataTableColumns<LeaderboardEntry> = [
     title: '排名',
     key: 'rank',
     width: 80,
-    render: (row) => h('span', { class: `rank ${rankClass(row.rank)}` }, `#${row.rank}`),
+    render: (row) => h('span', { class: `rank ${rankClass(row.rank ?? 0)}` }, `#${row.rank ?? '—'}`),
   },
   {
     title: '玩家',
     key: 'player',
     render: (row) =>
-      h('div', { class: 'lb-player' }, [
-        h(NAvatar, { src: row.avatar, size: 32, round: true }),
-        h('div', { class: 'lb-id' }, [
-          h('div', { class: 'lb-name' }, row.player),
-          h('div', { class: 'lb-steam' }, row.steam_id64),
-        ]),
-      ]),
+      h(PlayerCell, {
+        player: row.player,
+        steamId64: row.steam_id64,
+        avatar: row.avatar,
+      }),
   },
   { title: '完成地图', key: 'maps_completed', width: 100 },
   {
@@ -95,7 +96,7 @@ const columns: DataTableColumns<LeaderboardEntry> = [
     render: (row) =>
       h('div', { class: 'lb-last' }, [
         h('div', { class: 'lb-active' }, formatDaysAgo(row.last_played_days_ago)),
-        h('div', { class: 'lb-date' }, row.last_played),
+        h('div', { class: 'lb-date' }, row.last_played ?? '未同步'),
       ]),
   },
 ]
@@ -118,6 +119,11 @@ const columns: DataTableColumns<LeaderboardEntry> = [
 
   <NSpin :show="loading">
     <NAlert v-if="error" type="error" style="margin-bottom: 12px">{{ error }}</NAlert>
+    <NEmpty
+      v-else-if="!loading && (data?.length ?? 0) === 0"
+      description="榜单正在从上游同步，稍后刷新即可"
+      style="padding: 40px 0"
+    />
     <NDataTable :columns="columns" :data="rows" :pagination="{ pageSize: 20 }" />
   </NSpin>
 </template>

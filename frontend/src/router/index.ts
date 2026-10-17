@@ -6,9 +6,10 @@ const routes: RouteRecordRaw[] = [
   { path: '/', name: 'home', component: () => import('@/features/home/HomePage.vue'), meta: { title: '首页' } },
   { path: '/leaderboard', name: 'leaderboard', component: () => import('@/features/leaderboard/LeaderboardPage.vue'), meta: { title: '排行榜' } },
   { path: '/maps', name: 'maps', component: () => import('@/features/maps/MapsPage.vue'), meta: { title: '地图' } },
+  { path: '/maps/:id', name: 'map-detail', component: () => import('@/features/maps/MapDetailPage.vue'), meta: { title: '地图详情' } },
   { path: '/servers', name: 'servers', component: () => import('@/features/servers/ServersPage.vue'), meta: { title: '服务器' } },
   { path: '/records', name: 'records', component: () => import('@/features/records/RecordsPage.vue'), meta: { title: '最新记录' } },
-  { path: '/profile', name: 'profile', component: () => import('@/features/profile/ProfilePage.vue'), meta: { title: '个人资料' } },
+  { path: '/profile/:steam_id?', name: 'profile', component: () => import('@/features/profile/ProfilePage.vue'), meta: { title: '个人资料' } },
   { path: '/bans', name: 'bans', component: () => import('@/features/bans/BansPage.vue'), meta: { title: '封禁名单' } },
   { path: '/login', name: 'login', component: () => import('@/features/auth/LoginPage.vue'), meta: { title: '登录' } },
 ]

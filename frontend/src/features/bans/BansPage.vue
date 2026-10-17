@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, h, ref, watch } from 'vue'
-import { NAlert, NAvatar, NDataTable, NInput, NPagination, NSpin, NTag } from 'naive-ui'
+import { NAlert, NDataTable, NEmpty, NInput, NPagination, NSpin, NTag } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
+import PlayerCell from '@/components/PlayerCell.vue'
 import { useApi } from '@/composables/useApi'
 import { fetchBans } from './api'
 import type { BanEntry } from './types'
@@ -33,13 +34,11 @@ const columns: DataTableColumns<BanEntry> = [
     title: '玩家',
     key: 'player',
     render: (row) =>
-      h('div', { class: 'lb-player' }, [
-        h(NAvatar, { src: row.avatar, size: 32, round: true }),
-        h('div', { class: 'lb-id' }, [
-          h('div', { class: 'lb-name' }, row.player),
-          h('div', { class: 'lb-steam' }, row.steam_id64),
-        ]),
-      ]),
+      h(PlayerCell, {
+        player: row.player,
+        steamId64: row.steam_id64,
+        avatar: row.avatar,
+      }),
   },
   {
     title: '封禁理由',
@@ -72,6 +71,11 @@ const columns: DataTableColumns<BanEntry> = [
 
   <NSpin :show="loading">
     <NAlert v-if="error" type="error" style="margin-bottom: 12px">{{ error }}</NAlert>
+    <NEmpty
+      v-else-if="!loading && rows.length === 0"
+      description="暂无封禁记录"
+      style="padding: 40px 0"
+    />
     <NDataTable :columns="columns" :data="rows" :pagination="false" />
     <div v-if="pageCount > 1" class="pager">
       <NPagination v-model:page="page" :page-count="pageCount" :page-size="PAGE_SIZE" :page-sizes="[]" />

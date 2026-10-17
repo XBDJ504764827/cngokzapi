@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { NButton, NCard, useMessage } from 'naive-ui'
+import { NAlert, NButton, NCard, useMessage } from 'naive-ui'
 
 const message = useMessage()
 
-function mockLogin(): void {
-  message.info('将跳转 Steam OpenID（对接中），当前为模拟')
+// Steam OpenID 接入前（PROJECT §10 下一步）明确告知，不做"假装登录"的模拟动作
+function steamLoginUnavailable(): void {
+  message.warning('Steam OpenID 登录尚未接入，敬请期待')
 }
 </script>
 
@@ -14,10 +15,12 @@ function mockLogin(): void {
     <p class="page-sub">使用 Steam 账号登录社区</p>
   </div>
 
-  <NCard title="Steam 登录" style="max-width: 480px">
-    登录后同步头像、同步游戏时长，并解锁管理功能（删记录、封禁）。
-    <div style="margin-top: 12px">
-      <NButton type="primary" @click="mockLogin">前往 Steam 登录</NButton>
-    </div>
+  <NCard title="Steam 登录" style="max-width: 520px">
+    登录后可绑定个人资料页、解锁管理功能（删记录、封禁）。
+    <NAlert type="info" style="margin: 12px 0">
+      Steam OpenID 尚未接入（见 PROJECT §10 下一步）。当前无需登录即可浏览排行榜、地图、
+      服务器、记录与封禁名单，个人资料页可直接用 SteamID64 查询。
+    </NAlert>
+    <NButton type="primary" @click="steamLoginUnavailable">前往 Steam 登录</NButton>
   </NCard>
 </template>
