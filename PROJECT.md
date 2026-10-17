@@ -15,26 +15,38 @@
 旧 vanilla 原型已归档到 `docs/prototype/cngokz-web`，仅作视觉与交互参照，
 新功能以 Vue 实现为准，不再回写原型。
 
+数据来源与计分（2026-10-17 定稿，详见 §9）：历史成绩从 GlobalAPI 生态
+（`api.gokz.top` 为主、`kztimerglobal.com` 为辅）**按需导入**，新成绩由自建
+`cngokzapi` 服务器插件上报；**计分完全由本站独立完成**（标准 GOKZ 公式），
+不采用、不回写外部站点的分数，多个站点之间互不影响。
+
 ## 2. 功能需求（以原型 + 已上线页面为准）
 
 原型位置：`docs/prototype/cngokz-web/`（只读参照）；Vue 实现位置：`frontend/src/features/`：
 
-1. 首页：社区统计、在线服务器列表、最新记录。
+1. 首页：社区统计（4 个统计卡，真实数据）、「关于 CNGOKZ」介绍卡、「最新公告」列表
+   （位置＝介绍卡之后；当前为静态内容，见 `frontend/src/features/home/announcements.ts`）。
 2. 排行榜：全球玩家排名（KZT / SKZ / VNL 各 120 人，独立计分排序），
    每行含头像（模拟图，后续换 Steam 真实头像）、名称、SteamID64、完成地图、
    总分、平均分、记录数、最近游玩时间；支持名称模糊 / SteamID64 子串搜索、
    活跃度筛选（近 7 / 30 天、超 30 天未玩）、多字段排序，计数以标题右侧徽章展示。
    条目字段后续接真实数据时保持兼容（后端 `modules/leaderboard/repository.rs` 同口径）。
-3. 地图列表：浏览全部地图，支持难度（Tier 1-8）筛选与搜索。
+3. 地图列表：浏览全部地图，支持难度（按当前模式 Tier）筛选与名称搜索；
+   **卡片网格排列**（仿 gokz.top）：地图图片、地图名称、制作人、难度徽章、
+   是否有奖励关（Bonus ×N / 无 Bonus）；每页 24 张分页。图片走 `utils/mapImage.ts`
+   统一出口（当前用 KZGlobalTeam 公开图库，后续可换自建图床）。
 4. 地图详情：单个地图信息 + 前 100 名排行。
-5. 服务器列表：全部在线服务器详细信息（地图、在线玩家、人数），默认列式展示，
-   卡片不直接展示地址（仅复制 IP 按钮可用，防止爬虫抓取）。
+5. 服务器列表：全部在线服务器详细信息，提供**两种视图切换**——卡片排列（grid）与
+   列状排列（list，**默认**）；两种视图都显示当前地图图片、地图名、难度与区域、人数、
+   在线玩家昵称标签。地址一律不渲染明文，仅「复制 IP」按钮可用（防爬虫，见 §2 设计约束）。
 6. 个人资料：玩家统计、完成地图、个人记录。
 7. Steam 登录：当前为模拟，需接 Steam OpenID 真实登录。
 8. 封禁名单（新增）：封禁玩家公示，每行含头像、名称、SteamID64、封禁理由、
    封禁时间、封禁服务器、详细数据（地图·模式·异常成绩·Demo 编号）；支持名称模糊 /
    SteamID64 子串搜索，每页 20 人翻页；当前 45 条模拟占位，真实管理数据接入时字段保持兼容。
-9. 最新记录：KZT / SKZ / VNL 三列并排，各列最新 20 条，不再跟随导航栏模式开关。
+9. 最新记录：KZT / SKZ / VNL 三列并排，各列最新 20 条（不跟随模式开关）；
+   每行显示**玩家头像**（真实头像缺失时按 SteamID64 生成占位图），玩家名可点进个人资料页；
+   列宽固定 + 省略号（hover 显示全称），确保不出现文字换行。
 
 设计约束（必须保留）：
 
@@ -61,6 +73,8 @@
 | 后端 | Rust + Axum + Tokio + SQLx + tracing | 性能好、内存安全；Axum/Tokio 为 Rust 主流 Web 组合 |
 | 数据库 | PostgreSQL | 排行、前 100、分页查询需要强一致 SQL 与索引；`backend/migrations/` 版本化管理 |
 | 缓存 | Redis | 榜单等读多写少接口缓存（TTL 见各模块 service），无库也可启动（懒连接） |
+| 数据接入 | `reqwest` + Tokio（`src/sources/` + `sync_jobs`） | 对接 GlobalAPI 生态公开 API，见 §9；按需回源，**禁止一次性全量镜像** |
+| 计分 | 本站自研（标准 GOKZ 公式，`modules/scoring/`） | 独立计分：只读本站 `records` 表，不依赖外部分数，见 §9.4 |
 
 ### 3.2 运行形态
 
@@ -93,6 +107,7 @@ backend/src/
 ├── errors.rs          # 统一错误 AppError → { error: { code, message } }
 ├── middleware/        # cors（开发放行）、后续加 auth/限流
 ├── infrastructure/    # db（PG 懒连接池）、cache（Redis Client），不写业务 SQL
+├── sources/           # 外部数据源客户端（gokz_top / kzgo；kztimerglobal 预留），唯一允许发外部 HTTP 处，见 §9
 └── modules/<domain>/  # 业务模块，六件套（缺省可省）：
     ├── routes.rs      # 只声明路径映射
     ├── handlers.rs    # 薄层：参数萃取 + 错误映射
@@ -102,8 +117,12 @@ backend/src/
     └── dto.rs         # 查询/提交对象（Deserialize）
 ```
 
+非 CRUD 模块同样放 `modules/`（见 §9）：`ingest`（外部上报接收）、
+`scoring`（计分公式，纯函数，无 IO）、`sync`（按需回源编排 + `sync_jobs` 队列）。
+
 规则：handler 不拼 SQL、不做业务判断；service 不碰传输细节；
-repository 之外不得出现 `sqlx::query`；无数据访问的模块可省略 `repository.rs`。
+repository 之外不得出现 `sqlx::query`；外部 HTTP 只允许出现在 `sources/`，
+外部响应 DTO 不得进入 `models.rs`；无数据访问的模块可省略 `repository.rs`。
 
 ### 3.4 前端分层（职责固定）
 
@@ -144,8 +163,8 @@ cngokzapi/
 │   ├── package.json
 │   └── vite.config.ts    # /api 代理到 Axum
 ├── backend/              # Rust + Axum（见 backend/README.md）
-│   ├── src/              # main/app/config/state/errors/middleware/infrastructure/modules
-│   ├── migrations/       # 0001_init.sql（sqlx migrate 管理）
+│   ├── src/              # main/app/config/state/errors/middleware/infrastructure/sources/modules
+│   ├── migrations/       # 0001_init.sql、0002_external_data.sql（sqlx migrate 管理）
 │   ├── tests/            #（集成测试规划中，单测在各模块内）
 │   ├── Cargo.toml
 │   └── Cargo.lock
@@ -159,7 +178,12 @@ cngokzapi/
 └── Cargo.toml            # workspace（成员：backend）
 ```
 
-## 5. 数据库设计（以 `backend/migrations/0001_init.sql` 为准）
+后端已落地模块（2026-10-17）：`sources/`（外部数据源）、`modules/` 下
+`maps` / `servers` / `players` / `stats` / `scoring` / `sync` / `ingest`（上报接收端，详见 §9）；
+`docs/data-sources.md`、`scripts/fake-plugin.mjs` 仍为规划项。
+运维小工具：`backend/src/bin/ingest-key.rs`（服务器组与上报 key 管理）。
+
+## 5. 数据库设计（`0001_init.sql` 为初始表，`0002_external_data.sql` 为外部数据接入）
 
 - `players(steam_id PK, name, avatar_url, points, created_at, banned_until)`
 - `maps(id PK, name UNIQUE, tier 1-8, mode, created_at)`
@@ -173,11 +197,54 @@ cngokzapi/
 约定：全部时间 `TIMESTAMPTZ`（UTC）；成绩存毫秒整数 `time_ms`；积分用整数；
 JSON 一律 snake_case，与前后端类型一一对应。
 
+外部数据接入（`0002_external_data.sql`，2026-10-17 已在测试库应用，见 §9）：
+
+- `maps` 增列：`external_id`、`tier_kzt`/`tier_skz`/`tier_vnl`（按模式 tier，0=未评级）、
+  `bonuses`、`workshop_id`、`filesize`、`validated`、`authors TEXT[]`、`synced_at`。
+- `players` 增列：`region`、`avatar_synced_at`、`updated_at`。
+- `records` 增列：`source`（`plugin`/`gokz_top`/`kztimer`）、`external_id`（UNIQUE）、
+  `stage`、`tickrate`、`teleports`、`points_local`（本站口径，可空）、
+  `origin_server_id`、`server_name`、`server_group`、`wr_time_ms`、`is_valid`、`updated_at`；
+  幂等唯一键 `(player_steam_id, map_id, mode, stage, tickrate, teleports, time_ms, created_at)`。
+  （原 `points` 列即上游口径分。）
+- `servers` 增列：`external_id`（UNIQUE）、`country`、`city`、`region`、`group_name`、
+  `group_custom_id`、`is_public`、`online`、`last_seen_at`。
+- `bans` 主键改为自增 `id`（同一玩家可多条封禁），增列 `external_id`（UNIQUE）、
+  `ban_type`、`stats`、`expires_at`、`source`。
+- 新增 `player_scores(player_steam_id, mode, points, points_local, rank, rating,
+  maps_completed, wrs_nub, wrs_pro, records_900_plus, records_800_plus, last_played,
+  source, updated_at)`：榜单汇总（上游口径 + 本站口径）。
+- 新增 `sync_jobs(kind, key, status, attempts, next_run_at, last_error, ...)`：按需回源队列
+  （`kind` = `maps`/`leaderboard`/`recent`/`map`/`player`/`servers`/`bans`）。
+- 新增 `server_groups(id, name, custom_id)`、`server_keys(group_id, api_key, label, ...)`：
+  服务器组与上报 key（§9.6 的 ingest 接收端已使用：`X-ApiKey` → `server_keys`）。
+
+地图/服务器展示补充（`0004_map_meta.sql`，2026-10-17 已应用）：
+
+- `maps.mappers TEXT[]`：制作人显示名（gokz.top 只给作者 SteamID，名称取自 kzgo 地图元数据；
+  实测 963/1044 张有值，其余前端显示"作者未知"）。
+- `servers.map_tier`：当前地图难度（同步时写入；**读取时用 `maps` 关联覆盖**，避免同步先后导致 0）。
+- `servers.player_names TEXT[]`：实时在线玩家昵称（来自上游 `live_status.players[].name`）。
+
 ## 6. API 规范
 
-- 前缀：`/api/v1`，JSON，UTF-8。已落地：
-  `GET /api/v1/health`、`GET /api/v1/leaderboard?mode=KZT`、
-  `GET /api/v1/records`、`GET /api/v1/bans?query=&page=&per_page=`。
+- 前缀：`/api/v1`，JSON，UTF-8。已落地（2026-10-17）：
+  - 健康：`GET /api/v1/health`、`GET /api/v1/health/ready`
+  - 榜单：`GET /api/v1/leaderboard?mode=KZT`（本站名次，按本站汇总分；前端本地搜索/筛选/排序）
+  - 记录：`GET /api/v1/records`（三模式各最新 20 条）
+  - 封禁：`GET /api/v1/bans?query=&page=&per_page=`（分页信封）
+  - 地图：`GET /api/v1/maps?query=&tier=&mode=`（返回含 `mappers` / 三模式 tier / `bonuses`）、
+    `GET /api/v1/maps/{id}?mode=KZT`（详情含主关前 100 与 `syncing` 标记）
+  - 服务器：`GET /api/v1/servers`（仅在线公开，含 `map_tier` / `player_names`；ip/port 仅供复制按钮，
+    页面不渲染明文）
+  - 玩家：`GET /api/v1/players/{steam_id64}`（个人资料，首次访问触发后台同步）
+  - 记录：`GET /api/v1/records`（含 `steam_id64`，供头像与资料页跳转）
+  - 统计：`GET /api/v1/stats`（首页计数）
+- 上报接收端（§9.6，已落地）：`POST /api/v1/ingest/records`（自建插件批量上报，
+  **幂等**，逐条返回 `accepted|duplicate|rejected`，单批上限 200）、
+  `POST /api/v2.0/records`（GlobalAPI 兼容层，请求体与官方一致，
+  返回 `place/top_place/top_overall_place`）；两者均用 `X-ApiKey`（服务器组 key）鉴权，
+  错误体沿用统一信封。
 - 命名：复数资源小写下划线，如 `GET /api/v1/players/:steam_id`、`GET /api/v1/maps`、
   `GET /api/v1/maps/:id/records?mode=KZT`、`GET /api/v1/servers`。
 - 分页：`?page=1&per_page=20`（默认 20，最大 100），返回 `{ data, pagination: { page, per_page, total } }`。
@@ -195,6 +262,9 @@ JSON 一律 snake_case，与前后端类型一一对应。
 - Vue/TS：`npm run build`（含 `vue-tsc -b`）必须通过；`noUnusedLocals` 下无用引入直接删；
   类型 snake_case 不映射；注释用中文写清原因（复杂逻辑、Steam 流程、占位替换点）。
 - 提交信息：`feat/fix/docs/chore: 简述`，中文，关联页面或 API。
+- 外部数据源：只允许在 `backend/src/sources/` 使用 HTTP 客户端；必须带可识别 UA、
+  超时与有限重试，禁止在 handler/service 直接发外部请求；上游字段映射集中在 sources 层
+  （见 §9.2/§9.9）。
 
 ## 8. 开发流程
 
@@ -210,9 +280,164 @@ JSON 一律 snake_case，与前后端类型一一对应。
 6. AI 开发后必须更新：
    - `CHANGELOG.md` 新增当日条目。
    - 若架构/目录/API/DB 有变，同步改 `PROJECT.md`。
+   - 涉及外部数据源、同步策略、计分规则或接收端契约时，同步更新 §9。
    - 无 PG/Redis 时不得阻塞启动（懒连接），占位 `allow(dead_code)` 写清消除条件。
 
-## 9. 当前状态与下一步
+## 9. 外部数据接入与独立计分（GlobalAPI 生态）
+
+> 2026-10-17 定稿。本节是「数据从哪来、分怎么算、多站如何互不影响」的唯一依据，
+> 代码落地前后都以此为准；相关表结构与接口已在 §5 / §6 标注落地状态。
+
+### 9.1 生态机制（必须先理解，否则方案会走偏）
+
+- 游戏服务器侧 = **GOKZ**（SourceMod 计时/模式/判定）+ **GlobalAPI 客户端插件**
+  （上报成绩；API key 读 `cfg/sourcemod/globalapi-key.cfg`，请求头 `X-ApiKey`）。
+- 官方上报接口固定为 `POST {baseUrl}/records`，请求体
+  `{ steam_id, map_id, mode, stage, tickrate, teleports, time }`，
+  响应回 `place / top_place / top_overall_place`（GOKZ 用它播报"新纪录"）。
+- **`baseUrl` 是编译期常量**（生产 `https://kztimerglobal.com/api/v2.0`、
+  预发 staging），GlobalAPI 插件只有 `GlobalAPI_Debug` / `GlobalAPI_Staging` 两个
+  convar，**不支持自定义 URL** → 服务器改配置无法把记录推到我们站。
+- GOKZ 只在 `GlobalsEnabled(mode)` 时上报，条件含 API key 有效、禁用命令检查、
+  settings enforcer、地图与模式检查（即第三方站后台显示的
+  "apiKey / plugins / settingsEnforcer / map" 检查项）。
+- 网站只有两种角色：**只读型**（读别人的公开聚合 API，如 kzgo.eu 读 kztimerglobal）、
+  **导入型**（从 GlobalAPI 体系导入，如 gokz.top 的 `globalapiRecordsSync`）。
+- **红线**：没有任何站点能拿到"未接入 GlobalAPI 上报"的服务器的成绩。
+  我们要拿到那部分数据，只能靠自建上报插件（§9.7）。
+
+### 9.2 数据源与优先级（全部为匿名可读公开接口）
+
+| 优先级 | 数据源 | 用途 | 备注 |
+|---|---|---|---|
+| 主 | `https://api.gokz.top/v1/*` | 玩家档案/榜单/记录/地图（含 KZT/SKZ/VNL 三模式 tier）/bans/servers/jumpstats | `/v1/admin/*` 一律不碰 |
+| 辅 | `https://kztimerglobal.com/api/v2.0/*` | 交叉校验、兜底、外部成绩兜底增量 | 字段口径与官方一致 |
+| 兜底 | `https://kzgo.eu/api/*` | **地图制作人显示名**（`/api/maps` 的 `mapperNames`，已用于地图卡片） | 公开只读；注意其字段可能含 null |
+
+关键接口（均已实测）：
+
+- 玩家：`GET /v1/leaderboards/players/{steamid64}`、`GET /v1/records?steamid64=&offset=&limit=`
+- 榜单：`GET /v1/leaderboards/players?offset=&limit=`（返回 `count`，可分页）
+- 地图：`GET /v1/maps`、`GET /v1/records?map_name=&stage=&limit=`
+- 增量：`GET /v1/records/recent?created_since=`
+- 其他：`GET /v1/servers`、`GET /v1/bans`、`GET /v1/records/pb?map_name=&identifier=`
+
+注意：`kztimerglobal` 的 `player_ranks`（现成积分总榜）**服务端 500、不可依赖**
+→ 分数必须自建（§9.4）。
+
+### 9.3 三条数据通路（统一写入本站 `records` 表）
+
+| 通路 | 触发方式 | 说明 |
+|---|---|---|
+| 导入 | 定时 + 按需回源 | 从 §9.2 数据源导入历史与外部成绩，`source='gokz_top'|'kztimer'` |
+| 原生上报 | `cngokzapi` 插件（后续开发） | `POST /api/v1/ingest/records`，字段最全，见 §9.6 |
+| 兼容上报 | 任意 GlobalAPI 兼容客户端（远期） | `POST /api/v2.0/records`，字段与官方一致 |
+
+三条通路的记录**幂等去重**（§9.6）；同一成绩以**插件上报优先**（字段更全），
+导入行不重复计分。
+
+### 9.4 独立计分
+
+- 计分完全由本站完成：**只读本站 `records` 表 + 本站计分引擎**；
+  **绝不依据外部返回的分数调整自己的分数**，也**不向任何外部站点写分**。
+- 规则采用**标准 GOKZ 计分公式**（按地图 tier + 名次 + TP/PRO 口径），
+  使"导入的历史成绩"与"将来插件上报的新成绩"处在同一把尺子上。
+- 上游 `points` 有两个用途：① 榜单与档案的权威展示值（见下）；② **单测 oracle**——
+  拉上游真实成绩，断言本站公式算出的分与之一致。
+- 双分存储：`records.points`（单条成绩分，上游口径）、`records.points_local`（本站算，可空）；
+  `player_scores.points`（上游全球积分）、`player_scores.points_local`（本站已同步成绩合计）。
+- **榜单口径（2026-10-17 实测定案）**：榜单按 `player_scores.points`（上游积分）排序并计算本站名次。
+  原因：本站 `points_local` 只有在某玩家成绩被**完整**同步后才与上游等价，而按需回源只拉
+  前 1000 条，合计必然偏小；把它当作权威会得出错误排名。个人资料页同时展示两个数字并标注
+  "本站已同步合计（可能不完整）"。待插件直报或全量镜像后，再切回本地分优先。
+- 本地汇总口径：按 `(地图, 关卡, 是否用传送)` 分组取最佳再求和——TP / PRO 是两张独立榜单、
+  各自给分，合并分组会少算（见 `0003_scoring_fix.sql`）。
+
+### 9.5 同步策略（按需回源，禁止一次性全量镜像）—— 已实现
+
+- **玩家维度可懒加载**：用户查某玩家、或收到该玩家上报 → 后台拉其档案与 PB → 落库计分。
+- **地图维度必须整图同步**：计分依赖名次，首次需要某 `(地图, 模式, 关卡)` 时，
+  拉该图**全部得分记录**（实测单图单模式主关约 2800 条 / 1.2MB / 16 秒），
+  之后本地即可实时排名；缓存 TTL 默认 7 天并做增量。
+- **榜单维度按页**：用户翻到第 N 页才拉上游第 N 页；另用上游 WR 榜
+  （每模式约 100 条）作种子，避免冷启动榜单空白。
+- **增量**：定时按 `created_since` 游标拉 `recent`，量很小。
+- 所有回源经 `sync_jobs` 队列：同一 key 去重、指数退避、外部总并发上限
+  （默认单源 ≤ 2），失败不阻塞请求（先返回骨架/缓存，同步完成后再刷新）。
+
+### 9.6 接收端契约（已实现，2026-10-17）
+
+```http
+# 原生：自建 cngokzapi 插件使用（推荐，字段最全）
+POST /api/v1/ingest/records            X-ApiKey: <服务器组 key>
+[ { "record_uuid": "…", "steam_id64": "…", "player_name": "…",
+    "map_name": "…", "mode": "KZT", "stage": 0, "tickrate": 128,
+    "teleports": 0, "time_ms": 169422, "server_id": 1394, "created_on": "…" } ]
+→ { "results": [ { "status": "accepted|duplicate|rejected", "place": 1, "points": 1000 } ] }
+
+# 兼容层：任意 GlobalAPI 兼容客户端（字段与官方一致）
+POST /api/v2.0/records                 X-ApiKey: <key>
+{ "steam_id": "STEAM_1:0:…", "map_id": 200, "mode": 200,
+  "stage": 0, "tickrate": 128, "teleports": 0, "time": 169.422 }
+→ { "place": 1, "top_place": 1, "top_overall_place": 1 }
+```
+
+- 鉴权：`X-ApiKey`，key 由本站按**服务器组**签发（`server_groups` / `server_keys`）。
+- 幂等键：`(steam_id64, map, mode, stage, tickrate, tp 口径, time_ms, created_on)`
+  或客户端 `record_uuid`；重复上报返回 `duplicate`，**不重复计分**。
+- 错误体沿用 §6 统一信封；外部上报接口限流并记录来源服务器。
+- **实现说明（2026-10-17 已落地）**：
+  - 代码位于 `backend/src/modules/ingest/`；鉴权查 `server_keys`（`revoked_at IS NULL`）→ 服务器组。
+  - 原生接口单批上限 200 条；**单条失败只让该条 `rejected`**，只有数据库故障才整批 500
+    （客户端应重试）。
+  - 兼容层官方客户端没有幂等键：用自然键 + **10 分钟时间窗**判定重试；
+    `top_place` 与 `place` 同为"含传送口径"名次，`top_overall_place` 为不分传送口径的名次。
+  - 受理后按本站口径（`(地图, 关卡, 传送口径)` 取最佳求和）重算该玩家该模式的
+    `player_scores.points_local`；**单条成绩分（GOKZ 公式）仍未落地**，
+    入库 `points = 0`、响应 `points = null`（见 §9.4）。
+  - key 管理：`cargo run --bin ingest-key -- create-group|issue-key|list|revoke|delete-record`。
+  - 未做（后续）：请求限流/配额、按服务器组的审计统计、replay / jumpstats 接收。
+
+### 9.7 插件侧约定（自建 `cngokzapi` 插件）
+
+- 定位：**瘦上报器**，不复制 GOKZ 功能；数据从 GOKZ 公开 forward 取
+  （`GOKZ_OnTimerEnd_Post(client, course, time, teleportsUsed)` 等，
+  头文件见 GOKZ 仓库 `include/gokz/*.inc`）。另可用 `GOKZ_OnTimerStart_Post`、
+  `GOKZ_OnRunInvalidated`、`GOKZ_OnJumpValidated` 等。
+- 命名：convar 前缀 `cngokz_`、控制台命令 `sm_cngokz_*`；key 文件独立为
+  `cfg/sourcemod/cngokzapi/apikey.cfg`。
+- **异步 HTTP + 本地队列 + 指数退避**：本站不可用时记录不丢、且**不阻塞游戏线程**。
+- 多站分发时**每站一个独立 worker**（独立 key、超时、重试），一站故障不影响其他站
+  —— 这是"上传到多个网站互不影响"的实现方式。
+- 默认静默（不刷聊天）；选项菜单注册到自己的分类；`Action` 型 forward 永远返回
+  `Plugin_Continue`。
+
+### 9.8 共存冲突规避清单（GOKZ + gokz-top-plugins + cngokzapi）
+
+| # | 冲突点 | 规避做法 |
+|---|---|---|
+| 1 | 命令/convar 重名 | gokz-top 已占 `sm_pb`/`sm_gpb`/`sm_tier`/`gokz_top_*`；我们统一 `cngokz_*`、`sm_cngokz_*`，聊天命令避开 `!pb !tier !wr` |
+| 2 | 聊天刷屏 | 记录结束时两边都打印 → 我们的插件默认静默，只做上报 |
+| 3 | 选项菜单槽位 | 经 `GOKZ_OnOptionsMenuCreated/Ready` 注册到**自己的分类**，不复用 Jumpstats 等 |
+| 4 | forward 返回值 | `Action` 型一律 `Plugin_Continue`，**绝不 `Plugin_Handled`**（会掐断 GOKZ 与其他插件） |
+| 5 | HTTP 并发 | 各插件自发出站请求，需各自限速/超时，避免打满出站连接 |
+| 6 | 同一成绩被两条通路写入 | 接收端幂等去重（§9.6），否则双计分 |
+| 7 | API key 文件 | GlobalAPI 用 `globalapi-key.cfg`、gokz-top 用 `cfg/sourcemod/gokz-top/apikey.cfg`、我们用 `cfg/sourcemod/cngokzapi/apikey.cfg`，互不共用/覆盖 |
+| 8 | GOKZ 内部状态 | 只用 GOKZ native 读数据，不自行修改计时/存档 |
+
+### 9.9 合规与礼貌
+
+- 请求带可识别 UA（如 `cngokzapi/0.1 (+联系方式)`）；单源并发 ≤ 2，遇 429/5xx 退避。
+- 页面与文档标注数据来源与最后更新时间。
+- 只使用公开只读接口；`/v1/admin/*`、需要登录态的接口一律不碰。
+
+### 9.10 待确认项
+
+1. GlobalAPI 客户端未来是否支持自定义 URL（当前不支持）→ 决定"兼容上报"通路的可行性。
+2. 是否需要"仅本站服务器成绩"与"全球成绩"两套榜单可切换（`source` 字段已预留）。
+3. 上游封禁（`/v1/bans`）是否跟随清榜（策略问题，不阻塞实现）。
+
+## 10. 当前状态与下一步
 
 - 当前：第二步完成（2026-10-16，`develop`）：`web/` 三件套与 `~/cngokz-web` 逐字节一致，
   Axum `ServeDir` 托管（`/` 自动返回 `index.html`，`WEB_DIR` 可覆盖），
@@ -229,7 +454,43 @@ JSON 一律 snake_case，与前后端类型一一对应。
 - 当前：62 测试库已接通（2026-10-16，`develop`）：`.env` + `dotenvy` 落地，
   `GET /api/v1/health/ready` 返回 PG/Redis 双 true，`0001_init` 迁移已在 62 库应用；
   数据接口仍走模拟层，下一步换 PG 回源 + Redis 缓存。
+- 当前：外部数据接入方案定稿（2026-10-17，`develop`，**仅文档**）：数据源优先级、
+  按需同步策略、独立计分与双分存储、两套接收端契约、插件约定与三插件共存规避清单
+  写入 §9；**对应代码尚未开始**。
+- 当前：真实数据全面替代模拟数据（2026-10-17，`develop`）：
+  - 后端：`0002_external_data.sql` 已应用；新增 `sources/`（GOKZ.TOP 客户端：UA/限速/重试）、
+    `modules/sync`（`sync_jobs` 队列 + 后台 worker：启动种子、定时增量、按需回源、
+    并发上限、指数退避、重启接管 running 任务）、`modules/scoring`（最佳成绩汇总口径）
+    与 `maps`/`servers`/`players`/`stats` 四个读模块；`leaderboard`/`records`/`bans`
+    改读本站 PG，**`modules/mock.rs` 已删除**。
+  - 数据：实测已导入约 1000+ 张地图、1100+ 玩家、8 万+ 成绩、81 台在线服务器、500 条封禁；
+    `GET /api/v1/health/ready` 与各接口均返回真实数据。
+  - 前端：`home`/`maps`（含 `/maps/:id` 详情）/`servers`/`profile`（含 `/profile/:steam_id?`）
+    四页接真实接口；新增公共组件 `PlayerCell.vue`；导航新增「个人资料」，页脚标注数据来源；
+    移除全部占位文案。
+  - 验证：`cargo test`（16 passed）、`cargo clippy --all-targets -- -D warnings`、
+    `npm run build`（含 `vue-tsc`）全过；直连 18091 逐个接口核对（榜单/记录/封禁/地图/
+    地图详情/服务器/档案/统计）。
+- 当前：上报接收端落地（2026-10-17，`develop`）：`modules/ingest` 提供
+  `POST /api/v1/ingest/records`（批量、逐条结果、单批上限 200）与
+  `POST /api/v2.0/records`（GlobalAPI 兼容）；`X-ApiKey` → `server_keys` 鉴权，
+  原生按 `record_uuid`、兼容层按自然键 + 10 分钟窗口幂等；受理后重算本地汇总分；
+  新增 `src/lib.rs`（供 bin 与测试使用）与运维工具 `src/bin/ingest-key.rs`。
+  实测：无/坏 key 401、合法条 `accepted(place=1)`、非法条 `rejected(带原因)`、
+  重复 `duplicate`、兼容层 `201 {place,top_place,top_overall_place}` 且二次提交不产生重复行；
+  `cargo test` 21 passed。
+- 当前：首页公告 / 地图卡片 / 服务器双视图 / 记录头像（2026-10-17，`develop`）：
+  地图页改卡片网格（图片/名称/制作人/难度/Bonus，每页 24 张）；服务器页支持卡片与列状两种视图
+  （默认列状，均显示地图图片与在线玩家标签）；最新记录加玩家头像并固定列宽防换行；
+  首页恢复「最新公告」。后端补 `maps.mappers`、`servers.map_tier`/`player_names`、
+  `/records` 的 `steam_id64`，并修正同步队列优先级（全局任务优先于玩家补全）。
+  实测制作人 963/1044、在线服务器 89 台其中 42 台有在线玩家昵称；`cargo test` 23 passed。
 - 下一步（按序）：
   1. ~~旧阶段（vanilla 原型 + 单文件后端）~~ ✅ 已归档/替换
-  2. 剩余页面接真实接口：servers / maps / profile / home（后端 modules + 前端 features 对齐落地）
-  3. Steam OpenID 登录 + 管理接口（删记录、封禁）+ Redis 缓存与 PG 回源替换模拟层
+  2. ~~数据接入落地（§9）：`sources/` + `sync_jobs` + `scoring` + `0002/0003` + `ingest`；
+     真实数据点亮全部页面~~ ✅ 已完成
+  3. 单条成绩计分：本地实现标准 GOKZ 公式（用上游 `points` 做 oracle 单测），
+     落地后 `records.points_local` 与榜单可切回"本地分优先"（§9.4）
+  4. 数据完善：玩家头像懒加载（Steam 社区 XML）、档案/榜单过期重同步、Redis 缓存
+  5. Steam OpenID 登录 + 管理接口（删记录、封禁）+ 上报限流与审计
+  6. `cngokzapi` 服务器插件（瘦上报器，见 §9.7）—— 对接已就绪的 `/api/v1/ingest/records`

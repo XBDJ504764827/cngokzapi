@@ -10,6 +10,260 @@
 
 ---
 
+## 2026-10-17 首页公告 / 地图卡片 / 服务器双视图 / 记录头像
+
+- 背景：用户反馈"还有部分没有恢复"，并明确四项：① 恢复首页「最新公告」的内容与位置；
+  ② 地图页仿 gokz.top 改卡片排列，显示地图图片、名称、制作人、难度、是否有 Bonus；
+  ③ 服务器页提供卡片排列与列状排列两种视图，并显示地图图片等；④ 最新记录显示玩家头像并重排布局，
+  避免文字换行。图片先接入上游公开地图图库（后续按要求可换自建图床）。
+- 变更内容：
+  - 后端数据：
+    - 迁移 `0004_map_meta.sql`：`maps.mappers TEXT[]`、`servers.map_tier`、`servers.player_names TEXT[]`。
+    - 新增数据源 `sources/kzgo.rs`：kzgo 地图元数据里的**制作人显示名**（gokz.top 只给作者 SteamID）；
+      `run_maps` 在地图库写完后补写，实测 **963/1044** 张有制作人名。
+      **注意上游 `mapperNames` 可能含 null**（实测 `kz_south` 为 `["nopey", null]`），已容错。
+    - `run_servers` 写入当前地图难度与实时在线玩家昵称；服务器读取时用 `maps` 关联难度，
+      避免同步先后导致 tier 为 0。**注意上游 `live_status` 的数值/布尔/数组字段都可能是 null**，
+      已全部改为 `Option`（此前正是它让 `servers` 任务长期 failed）。
+    - `GET /api/v1/records` 增加 `steam_id64`（前端生成头像与跳转资料页用）。
+    - 同步队列改进：**全局任务优先于逐玩家的档案补全**，否则玩家任务会把全局同步饿死；
+      定时入队顺序改为"地图 → 榜单 → 服务器 → 封禁 → 增量"。
+    - 运维工具 `ingest-key` 增加 `jobs`（查看队列与失败原因）与 `requeue <kind> <key>`（立即重跑）。
+  - 前端：
+    - 首页：恢复「最新公告」区块（位置在「关于 CNGOKZ」之后，三条公告内容同原原型），
+      卡片样式沿用原型的 `.announcement-*`。
+    - 地图页：改为卡片网格（地图图片 / 名称 / 难度徽章 / 制作人 / Bonus 标记），
+      保留搜索 + 难度筛选，新增分页（每页 24 张）。
+    - 服务器页：新增视图切换（卡片排列 / 列状排列，**默认列状**）；两种视图都显示地图图片、
+      当前地图、难度与区域、人数、在线玩家标签；地址仍只经「复制 IP」获取（不渲染明文）。
+    - 最新记录：新增玩家头像列（头像 + 名称可点进资料页），列宽固定 + 省略号（hover 显示全称），
+      不再出现文字换行。
+    - 新增 `utils/mapImage.ts`（地图图片地址统一出口）与 `features/home/announcements.ts`（公告静态数据）。
+- 涉及文件：新增 `backend/migrations/0004_map_meta.sql`、`backend/src/sources/kzgo.rs`、
+  `frontend/src/utils/mapImage.ts`、`frontend/src/features/home/announcements.ts`；
+  修改 `backend/src/sources/{mod.rs,gokz_top.rs}`、
+  `backend/src/modules/{sync/{jobs,queue,worker,repository}.rs,maps/*,servers/*,records/*}`、
+  `backend/src/bin/ingest-key.rs`、`frontend/src/features/{home,maps,servers,records}/*`、
+  `PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：`0004` 已应用；`GET /api/v1/maps` 增加 `mappers`；
+  `GET /api/v1/servers` 增加 `map_tier`、`player_names`；`GET /api/v1/records` 增加 `steam_id64`。
+- 测试与结果（2026-10-17）：
+  - `cargo test` **23 passed**（新增：kzgo 含 null 制作人的解析、服务器 `live_status` 全 null 的解析）；
+    `cargo clippy --all-targets -- -D warnings`、`cargo fmt --check`、`npm run build`（含 `vue-tsc`）全过。
+  - 实测数据：制作人 **963/1044**；服务器 89 台在线、其中 **42 台带在线玩家昵称**；
+    当前地图难度按 `maps` 关联正确（如 CNGOKZ 9 服 `kz_hb_lowlita` → Tier 4）。
+  - 页面：`/`、`/maps`、`/maps/11`、`/servers`、`/records`、`/bans`、`/leaderboard`、`/profile`、`/login` 全 200。
+  - 修过的问题：kzgo `mapperNames` 含 null 导致整批解析失败；`live_status` 字段为 null 导致
+    `servers` 任务一直 failed（表现为"服务器没有玩家/难度"）；玩家补全任务抢占全局同步。
+
+## 2026-10-17 布局回归：恢复原有页面骨架与设计，仅以真实数据填充
+
+- 背景：用户要求"改成昨天那种布局，网站的布局与样式和设计都不要改变"。此前接真实数据时，
+  首页/地图/服务器/个人资料除了填数据，还顺带改了布局（6 卡统计 + 两张附加表、自定义服务器
+  卡片列表、自定义档案网格、导航多一项、页脚多一行），属于超出要求的改动，本次全部回归。
+- 变更内容：
+  - 首页：回到「`page-head` + 4 列 `NGrid`（4 个 `NStatistic`）+ 「关于 CNGOKZ」卡」的原结构，
+    删除附加的"最新记录/最活跃服务器"两张表；统计数字改为真实值（取不到时显示 `—`）。
+  - 地图 / 服务器 / 个人资料：统一回到「`page-head` + 单张 `NCard`」骨架，真实内容
+    （筛选 + `NDataTable`）放在卡片内部；删除自定义的服务器卡片网格与档案网格，
+    只用站内已有的 `NDataTable` / `.toolbar` / `NTag` 组合。
+  - 地图详情（新页面，昨天不存在）：同样只用 `page-head` + `NCard` + `NDataTable`。
+  - 导航：去掉新增的「个人资料」项，恢复昨天的 6 项（资料页仍可从任意列表点击玩家名进入，
+    或直接访问 `/profile/<SteamID64>`）。
+  - 页脚：恢复昨天的三个链接与版权行，去掉新增的"数据来源"一行；数据来源标注保留在首页
+    「关于 CNGOKZ」卡片内，仍满足 PROJECT §9.9 的标注要求。
+  - 头像：沿用上一轮恢复的按 SteamID64 生成的 DiceBear 图（与重构前一致）。
+- 涉及文件：修改 `frontend/src/layouts/DefaultLayout.vue`、`frontend/src/features/home/HomePage.vue`、
+  `frontend/src/features/maps/MapsPage.vue`、`frontend/src/features/maps/MapDetailPage.vue`、
+  `frontend/src/features/servers/ServersPage.vue`、`frontend/src/features/profile/ProfilePage.vue`、
+  `CHANGELOG.md`。
+- 数据库与 API 变化：无（纯前端展示层）。
+- 测试与结果（2026-10-17）：
+  - `npm run build`（含 `vue-tsc -b`）通过，产物哈希更新为 `assets/index-BlPw28kB.js`；
+    页面 `/`、`/maps`、`/maps/11`、`/servers`、`/profile`、`/records`、`/bans`、`/leaderboard`、
+    `/login` 全部 200（普通刷新 + 必要时强刷即可生效）。
+  - 与昨天的对比：`frontend/src/layouts/DefaultLayout.vue`、`frontend/src/styles/global.css`、
+    `frontend/src/app/theme.ts`、`frontend/src/app/App.vue`、`frontend/index.html` 的 `git diff`
+    **均为空**（与重构前完全一致）；首页结构核对为 `NGrid :cols="4"` + 4 个 `NStatistic`
+    + 「关于 CNGOKZ」卡。
+  - 剩余差异仅为"页面内容"（真实数据的表格）以及新增的 api/types/`PlayerCell`/`avatar` 工具文件。
+
+## 2026-10-17 外观回归：恢复页脚链接与头像生成图
+
+- 背景：用户反馈"网站样式跟昨天不同"。排查结论：设计系统（`global.css`、`styles/global.css` 与
+  `app/theme.ts`、`App.vue`、`index.html`）**今天完全没改**；变化来自"占位页换成真实数据页"，
+  外加两处与"接真实数据"无关的顺带改动（页脚链接、头像），后者属于不该动的部分，本次还原。
+- 变更内容：
+  - 页脚：恢复「关于我们 / 规则说明 / API 文档」三个链接（`.footer-links` 样式一并恢复），
+    保留一行小字「数据来源：GOKZ.TOP / KZTimer Global API」。
+  - 头像：新增 `frontend/src/utils/avatar.ts`（`avatarUrl` / `fallbackAvatar`），
+    没有真实头像时按 SteamID64 生成与重构前一致的 DiceBear identicon，
+    不再是灰色首字母圆圈；`PlayerCell.vue` 与 `ProfilePage.vue` 统一走该工具函数。
+- 涉及文件：新增 `frontend/src/utils/avatar.ts`；修改
+  `frontend/src/layouts/DefaultLayout.vue`、`frontend/src/components/PlayerCell.vue`、
+  `frontend/src/features/profile/ProfilePage.vue`、`CHANGELOG.md`。
+- 数据库与 API 变化：无（纯前端展示）。
+- 测试与结果（2026-10-17）：
+  - `npm run build`（含 `vue-tsc -b`）通过，产物哈希更新为 `assets/index-CIJUBwmL.js`，
+    站点 `/` 返回 200 且 `index.html` 已指向新产物（普通刷新即可生效）。
+  - 未改动主题与全局样式：`git diff` 对 `frontend/src/styles/global.css`、`frontend/src/app/theme.ts`、
+    `frontend/src/app/App.vue`、`frontend/index.html` 均为空。
+
+## 2026-10-17 收尾：全站真实数据验收与文档一致性
+
+- 背景：目标（真实数据替代全部模拟数据 + §9 服务端落地）完成后做最终验收：逐页逐接口核对、
+  清掉最后残留的模拟痕迹、修正文档里过期的"尚未实现"表述。
+- 变更内容：
+  - 前端登录页：删除 `mockLogin()` 假装登录的模拟动作，改为明确提示「Steam OpenID 尚未接入」
+    并说明免登录可用范围（排行榜 / 地图 / 服务器 / 记录 / 封禁 / 按 SteamID64 查资料）。
+  - `PROJECT.md`：§4 已落地模块补上 `ingest` 与运维 bin；§5 的
+    `server_groups` / `server_keys` 说明由"接口尚未实现"改为"接收端已使用"；
+    §9 引言由"规划项中同步标注"改为"已标注落地状态"。
+  - `CHANGELOG.md`：同日条目按「背景 / 变更内容 / 涉及文件 / 数据库与 API 变化 / 测试与结果」
+    统一整理与措辞校正。
+- 涉及文件：修改 `frontend/src/features/auth/LoginPage.vue`、`PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无（纯前端文案与文档）。
+- 测试与结果（2026-10-17，`PORT=3000`，连 62 测试库）：
+  - 页面全部 200：`/`、`/maps`、`/maps/11`、`/servers`、`/profile`、
+    `/profile/76561198297415967`、`/records`、`/bans`、`/leaderboard`、`/login`。
+  - 接口全部 200：`/health/ready`、`/stats`、`/leaderboard?mode=KZT`、`/records`、
+    `/bans`、`/maps?tier=5&mode=KZT`、`/maps/11?mode=KZT`、`/servers`、
+    `/players/76561198297415967`。
+  - 运行数据快照（截至本次验收）：1708 玩家 / 1044 地图 / 162,091 成绩 / 89 台在线服务器 /
+    500 条封禁。
+  - 质量门：`cargo fmt --check`、`cargo clippy --all-targets -- -D warnings`、
+    `cargo test`（21 passed）、`npm run build`（含 `vue-tsc`）全部通过；
+    `backend/src` 与 `frontend/src` 中已无 `mock` 引用。
+
+## 2026-10-17 上报接收端（ingest）落地：原生批量 + GlobalAPI 兼容层
+
+- 背景：§9.6 的接收端是插件接入的前提，属服务端工作，先把这一侧做完（插件仍后置）。
+- 变更内容：
+  - 结构：新增 `backend/src/lib.rs`，把各模块暴露给 `main.rs`、`src/bin/*` 与后续集成测试；
+    `main.rs` 改为使用库目标（`cngokz_backend::…`）。
+  - 接收端 `modules/ingest`（dto / models / service / repository / handlers / routes）：
+    - `POST /api/v1/ingest/records`：批量上报，逐条返回 `accepted | duplicate | rejected`
+      （含 `place` 与拒绝原因），单批上限 200 条。
+    - `POST /api/v2.0/records`：GlobalAPI 兼容层——请求体 `{steam_id, map_id, mode, stage,
+      tickrate, teleports, time}`（`time` 为秒、`mode` 为 200/201/202），
+      返回 `{place, top_place, top_overall_place}`，HTTP 201。
+  - 鉴权：`X-ApiKey` → `server_keys`（`revoked_at IS NULL`）→ 服务器组；缺失/无效返回 401。
+  - 幂等：原生用客户端 `record_uuid`（`records.external_id` 唯一键）；兼容层官方客户端没有
+    幂等键，改用自然键 + **10 分钟时间窗**判定重试，重复提交不写入新行。
+  - 计分：受理后按本站口径（`(地图, 关卡, 传送口径)` 取最佳求和）重算受影响玩家的
+    `player_scores.points_local`；**单条成绩分（GOKZ 公式）仍未落地**，入库 `points = 0`、
+    响应 `points = null`（PROJECT §9.4）。
+  - 工具：新增 `backend/src/bin/ingest-key.rs`：`create-group` / `issue-key` / `list` /
+    `revoke` / `delete-record`（key 只显示一次，list 只显示前缀）。
+  - `AppError` 补 `Display` 实现（便于按条错误转换），统一错误信封不变。
+- 涉及文件：新增 `backend/src/lib.rs`、`backend/src/modules/ingest/*`、
+  `backend/src/bin/ingest-key.rs`；修改 `backend/src/main.rs`、`backend/src/app.rs`、
+  `backend/src/modules/mod.rs`、`backend/src/errors.rs`、`backend/Cargo.toml`、
+  `PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无新迁移（`server_groups` / `server_keys` 已在 `0002`）；
+  新增两个 POST 接口（见上），其余接口不变。
+- 测试与结果（2026-10-17）：
+  - `cargo test` 21 passed（新增 SteamID32→64、模式归一化、秒→毫秒 单测）；
+    `cargo clippy --all-targets -- -D warnings`、`cargo fmt --check`、`npm run build` 通过。
+  - 端到端（端口 3000，连 62 测试库，实测后已清理测试数据）：
+    无 key / 坏 key → 401；原生批量 1 合法 + 1 非法 →
+    `accepted(place=1)` + `rejected("steam_id64 应为 17 位数字")`；
+    同一条再次上报 → `duplicate`；兼容层 → `201 {place:1,top_place:1,top_overall_place:1}`，
+    同成绩二次提交经玩家档案核对**只有 1 行**（窗口去重生效）。
+  - 修过的问题：`sum(bigint)` 在 PostgreSQL 返回 `NUMERIC`，按 `i64` 解码失败导致 500
+    （改为 `::BIGINT`）。
+
+## 2026-10-17 真实数据接入落地：删除全部模拟数据（网站先行，插件后置）
+
+- 背景：按 §9 方案开始实现。目标是"网站先用真实数据跑起来"，插件端后置。
+- 变更内容：
+  - 数据库：新增 `0002_external_data.sql` 并在 62 测试库应用——`maps` 三模式 tier / 工坊 /
+    作者 / bonus、`players.region`、`records` provenance（source/external_id）与
+    stage/tickrate/teleports/points_local、`servers` 在线状态、`bans` 改自增 id（可多条），
+    新增 `player_scores` / `sync_jobs` / `server_groups` / `server_keys`。
+  - 后端新增 `src/sources/`：GOKZ.TOP 客户端（可识别 UA、单源 400ms 限速、三次退避重试、
+    外部 DTO 不外泄）。**注意：上游对默认 UA 返回 403，必须带 UA。**
+  - 后端新增 `modules/sync/`：`sync_jobs` 队列（幂等入队、`FOR UPDATE SKIP LOCKED` 认领、
+    指数退避、8 次后置 `dead`）+ 后台 worker（启动种子、recent 5min / servers 10min /
+    bans 1h / leaderboard 与 maps 24h 定时、最多 3 个任务并发、重启接管 running 任务）+
+    任务实现（maps / leaderboard / recent / map 整图 / player 档案 / servers / bans），
+    全部幂等 upsert；地图入库用 `jsonb_to_recordset` 单次往返。
+  - 后端新增 `modules/scoring/`：本站汇总口径（同一 (地图, 关卡, 是否用传送) 取最佳后求和 + 平均分）。
+  - 后端新增读模块 `maps`（列表过滤 + 详情前 100 + `syncing` 标记）、`servers`、`players`
+    （首次访问触发后台同步）、`stats`；`leaderboard` / `records` / `bans` 由模拟层改读本站 PG，
+    **删除 `backend/src/modules/mock.rs`**。
+  - 前端：`home` / `maps`（新增 `/maps/:id` 详情）/ `servers` / `profile`
+    （新增 `/profile/:steam_id?`）四页接真实接口；新增公共组件 `components/PlayerCell.vue`
+    （榜单/封禁/地图详情/首页 4 处使用者，无头像时用昵称首字占位）；导航新增「个人资料」；
+    页脚标注数据来源；移除全部占位与模拟文案（登录页改为明确提示「Steam OpenID 尚未接入」，
+    不再有假装登录的模拟动作）；榜单 `rank` 改为**本站名次**、最近游玩/记录数在未同步时显示"—"。
+- 涉及文件：新增 `backend/src/sources/*`、
+  `backend/src/modules/{sync,scoring,maps,servers,players,stats}/*`、
+  `backend/migrations/0002_external_data.sql`、`frontend/src/components/PlayerCell.vue`、
+  `frontend/src/features/{maps,servers,profile,home}/*`；
+  修改 `backend/src/{main,state,app,modules/mod}.rs`、
+  `backend/src/modules/{leaderboard,records,bans}/*`、`frontend/src/{router,layouts,utils}/*`、
+  `frontend/src/features/{leaderboard,bans}/*`、`PROJECT.md`、`CHANGELOG.md`；
+  删除 `backend/src/modules/mock.rs`。
+- 数据库与 API 变化：
+  - DB：`0002` 与 `0003_scoring_fix.sql` 均已应用（`0003` 清空旧 `points_local` 并把已同步的
+    玩家任务重新排队，按 TP/PRO 分开的正确口径重算）。
+  - API：新增 5 组——`GET /api/v1/maps`、`GET /api/v1/maps/{id}`、`GET /api/v1/servers`、
+    `GET /api/v1/players/{steam_id64}`、`GET /api/v1/stats`；`/leaderboard` 的 `rank` 改为本站名次、
+    `last_played` / `last_played_days_ago` 可为 `null`；`/records` 的 `points` 为整数。
+    `ingest` 上报接收端当时**仍未实现**（§9.6），随后在同日上一条「上报接收端落地」中完成。
+- 测试与结果（2026-10-17）：
+  - `cargo test` 16 passed；`cargo clippy --all-targets -- -D warnings` 通过；
+    `npm run build`（含 `vue-tsc -b`）通过。
+  - 运行时（`PORT=18091`，连 62 测试库，浏览器/接口直连）：`/health/ready` PG/Redis 双 true；
+    实测导入 1000+ 张地图、1100+ 玩家、8 万+ 成绩、81 台在线服务器、500 条封禁；
+    逐个核对榜单（200 行真实玩家/积分/完成图数）、地图 tier 过滤（T5+KZT 70 张）、
+    地图详情前 100、服务器（含 CNGOKZ 服实时地图与人数）、玩家档案（三模式排名/积分）、
+    首页统计、封禁搜索分页。
+  - 修过的问题：上游 `leaderboard?limit` 上限 100（改自动分页）；上游对默认 UA 返回 403；
+    进程重启后 `running` 任务无人接管（启动时重置为 `pending`）；地图详情曾因"已导入部分成绩"
+    误判同步完成（改为按 `sync_jobs` 的 done 状态判断）；SPA 深链刷新返回 404
+    （`ServeDir::not_found_service` 会强制 404，改用 `fallback` 返回 200 的 index.html，
+    同时给 API 加 JSON 404 兜底）；本地汇总把 TP/PRO 合成一张榜导致少算（改为按
+    `(地图, 关卡, teleports > 0)` 分组）；`points_local` 只有部分成绩时偏小，
+    若用于榜单会得出错误排名（**榜单改用上游积分口径**，见 PROJECT §9.4）。
+
+## 2026-10-17 外部数据接入与独立计分方案定稿（仅文档）
+
+- 背景：本站全部页面仍走模拟数据；需要"不从零计分"——把外部站点已有的成绩接进来，
+  同时保证本站**独立计分**、上传到多个站点**互不影响**；服务器插件端尚未开发，
+  故本轮只定方案与规范。为此先做了实测调研与源码核实（结论均已写入 PROJECT §9）：
+  - 生态：服务器侧是 GOKZ + GlobalAPI 客户端上报；网站只有"只读型"（kzgo.eu 读
+    `kztimerglobal.com`）与"导入型"（gokz.top 的 `globalapiRecordsSync` 从 GlobalAPI 导入）。
+    **未接入上报的服务器，任何站点都拿不到其成绩**。
+  - 核实 `GlobalAPI-SMPlugin`（Bitbucket）：只有 `GlobalAPI_Debug` / `GlobalAPI_Staging`
+    两个 convar，base URL 为编译期常量（生产 kztimerglobal / 预发 staging），
+    **不支持自定义 URL**；上报为 `POST {base}/records` + `X-ApiKey`，body 为
+    `{steam_id,map_id,mode,stage,tickrate,teleports,time}`。→ "服务器只改配置就推到我们站"不可行。
+  - `gokz-top-plugins`（kzcharm）是游戏内读取 + 服务器遥测插件，**不含成绩上传**；
+    成绩上传仍由 GOKZ 的 GlobalAPI 完成。
+  - `kztimerglobal` 的 `player_ranks`（现成积分榜）服务端 500、超时，不可依赖 → 必须自建计分。
+  - 实测 `api.gokz.top/v1/*` 匿名可读且字段最全：玩家榜（`count` 约 10.6 万）、
+    地图（含 KZT/SKZ/VNL 三模式 tier、bonus 数）、记录（可按 steamid64/map_name/stage 过滤）、
+    bans、servers、jumpstats、records/pb。
+- 变更内容（仅文档，未改代码）：
+  - `PROJECT.md` 新增 §9「外部数据接入与独立计分（GlobalAPI 生态）」：生态机制与红线、
+    数据源优先级表与关键接口、三条数据通路（导入 / 原生上报 / GlobalAPI 兼容上报）、
+    独立计分与 `points_local`/`points_source` 双分与上游 oracle 单测、按需同步策略
+    （玩家懒加载 / 地图整图同步 / 榜单按页 / recent 增量 + `sync_jobs` 队列）、
+    两套接收端契约（幂等键与 `X-ApiKey`）、`cngokzapi` 插件约定（瘦上报器、独立 key 文件、
+    本地队列退避、多站独立 worker）、三插件共存冲突规避 8 条、合规与待确认项；
+    原 §9 顺移为 §10 并更新当前状态与下一步。
+  - 同步补充：§1 目标（数据来源与独立计分）、§3.1 选型表（数据接入/计分两行）、
+    §3.3 后端分层（新增 `sources/`，`ingest`/`scoring`/`sync`，外部 HTTP 边界）、
+    §4 规划目录、§5 规划表结构与幂等键、§6 规划接口、§7 外部请求规范、§8 流程。
+- 涉及文件：修改 `PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无（规划项已在 §5/§6 标注为"落地前不存在"，随 `0002` 迁移与代码落地）。
+- 测试与结果（2026-10-17）：本轮为文档变更，未改代码；无 PG/Redis 依赖。
+  文档自检：章节编号连续（§9 新增、原 §9→§10），外部交叉引用 `§3.3`/`§5` 未被破坏；
+  上游接口结论均来自实测（`api.gokz.top`、`kztimerglobal.com`）与源码（GlobalAPI-SMPlugin、
+  gokz、gokz-top-plugins）。
+
 ## 2026-10-16 接入62测试库：dotenv + 就绪探针 + 迁移落地
 
 - 背景：局域网 192.168.0.62 上有现成测试库（PG 库 cngokzapi / Redis 带密码），把后端真正连上去，结束“无库启动”阶段。
