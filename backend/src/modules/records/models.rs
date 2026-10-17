@@ -5,9 +5,11 @@ use serde::Serialize;
 #[derive(Clone, Serialize)]
 pub struct RecordEntry {
     pub player: String,
+    /// 用于前端生成头像与跳转资料页。
+    pub steam_id64: String,
     pub map: String,
     pub mode: String,
     pub time: String,
-    pub points: u32,
+    pub points: i64,
     pub date: String,
 }

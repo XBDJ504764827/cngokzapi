@@ -13,10 +13,18 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # 本地 .env 文件加载（不存在则忽略，环境变量优先）
 dotenvy = "0.15"
+# 时间：外部 API 的 RFC3339 与 TIMESTAMPTZ 互转
+chrono = { version = "0.4", features = ["serde"] }
+# 外部数据源 HTTP 客户端：仅 src/sources/ 使用（见 PROJECT §3.3 / §9）
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip"] }
+# 仅 `src/bin/ingest-key` 用来生成随机 API key（PROJECT §9.6）
+rand = "0.8"
 # PostgreSQL：connect_lazy 懒连接，无库可启动；migrate 供 migrations/ 离线编译
-sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "tls-rustls", "migrate"] }
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "tls-rustls", "migrate", "chrono"] }
 # Redis：Client 不建连，首次命令才连接，无库可启动
 redis = { version = "0.27", features = ["tokio-comp"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
+# 测试里直接调用 Router（oneshot），需要 tower 的 util 特性
+tower = { version = "0.5", features = ["util"] }

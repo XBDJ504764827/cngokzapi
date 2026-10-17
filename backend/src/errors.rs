@@ -21,6 +21,21 @@ pub enum AppError {
     Internal(String),
 }
 
+impl std::fmt::Display for AppError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AppError::BadRequest(m) => write!(f, "参数错误：{m}"),
+            AppError::Unauthorized => write!(f, "需要先登录"),
+            AppError::Forbidden => write!(f, "无权限"),
+            AppError::NotFound(m) => write!(f, "不存在：{m}"),
+            AppError::ServiceUnavailable(m) => write!(f, "依赖不可用：{m}"),
+            AppError::Internal(m) => write!(f, "服务内部错误：{m}"),
+        }
+    }
+}
+
+impl std::error::Error for AppError {}
+
 #[derive(Serialize)]
 struct ErrorBody {
     error: ErrorDetail,

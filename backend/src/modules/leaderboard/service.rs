@@ -1,29 +1,22 @@
-//! 编排层：模式校验 + 取数。后续在此加 Redis 榜单缓存（TTL 60s）与 PG 回源。
+//! 编排层：模式校验 + 取榜。榜单数据由 `modules/sync` 定时/按需同步进 PG。
 
 use super::{models::LeaderboardEntry, repository};
-use crate::{errors::AppError, modules::mock};
+use crate::{errors::AppError, modules::mode, state::AppState};
 
-/// 取整榜。`mode` 缺省 KZT，非三模式直接 400。
-pub fn board(mode: Option<&str>) -> Result<Vec<LeaderboardEntry>, AppError> {
-    let mode = mode.unwrap_or("KZT");
-    if !mock::MODES.contains(&mode) {
-        return Err(AppError::BadRequest(format!(
-            "mode 非法，仅支持 {}",
-            mock::MODES.join("/")
-        )));
-    }
-    // TODO: 先查 Redis（键 leaderboard:{mode}），未命中查 PG 并回填。
-    Ok(repository::mock_board(mode))
+/// 取某模式榜单；本地无数据时返回空表（同步由后台 worker 负责）。
+pub async fn board(state: &AppState, m: Option<&str>) -> Result<Vec<LeaderboardEntry>, AppError> {
+    let m = mode::validate(m)?;
+    Ok(repository::top(&state.db, m, repository::BOARD_SIZE).await?)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::modules::leaderboard::repository::BOARD_SIZE;
 
     #[test]
     fn rejects_bad_mode() {
-        assert!(board(Some("XXX")).is_err());
-        assert_eq!(board(None).unwrap().len(), BOARD_SIZE);
+        assert!(mode::validate(Some("XXX")).is_err());
+        assert_eq!(mode::validate(None).unwrap(), "KZT");
+        assert_eq!(mode::validate(Some("VNL")).unwrap(), "VNL");
     }
 }

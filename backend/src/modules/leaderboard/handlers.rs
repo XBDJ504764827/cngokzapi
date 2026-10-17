@@ -8,8 +8,8 @@ use crate::{errors::AppError, state::AppState};
 
 /// GET /api/v1/leaderboard?mode=KZT —— 公开接口，无需鉴权。
 pub async fn list(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Query(q): Query<LeaderboardQuery>,
 ) -> Result<Json<Vec<LeaderboardEntry>>, AppError> {
-    Ok(Json(service::board(q.mode.as_deref())?))
+    Ok(Json(service::board(&state, q.mode.as_deref()).await?))
 }

@@ -1,76 +1,58 @@
-//! 最新记录数据源占位：三模式各最新 20 条（日期倒序）。
-//! 真实数据接入时改查 PG（按创建时间倒序），上层不动。
+//! 最新记录数据源：读本站 `records`（按创建时间倒序，主关 stage = 0）。
+
+use sqlx::{FromRow, PgPool};
 
 use super::models::RecordEntry;
-use crate::modules::mock;
+use crate::modules::format::format_duration_ms;
 
-pub const PER_MODE: usize = 20;
-
-fn name_pool() -> Vec<String> {
-    let mut seen = std::collections::HashSet::new();
-    let mut pool = Vec::new();
-    for mode in mock::MODES {
-        for h in leaderboard_heads(mode) {
-            if seen.insert(h) {
-                pool.push(h.to_string());
-            }
-        }
-    }
-    for n in mock::NAME_POOL {
-        if seen.insert(*n) {
-            pool.push(n.to_string());
-        }
-    }
-    pool
+#[derive(FromRow)]
+struct Row {
+    player: String,
+    steam_id: String,
+    map: String,
+    mode: String,
+    time_ms: i32,
+    points: i32,
+    date: String,
 }
 
-fn leaderboard_heads(mode: &str) -> Vec<&'static str> {
-    match mode {
-        "KZT" => vec!["ProGamer", "SpeedRunner", "TechMaster"],
-        "SKZ" => vec!["JumpGod", "ProGamer", "BunnyhopKing"],
-        _ => vec!["TechMaster", "KZ_Master", "ClimbFan"],
-    }
-}
+const SQL: &str = r#"
+SELECT p.name                              AS player,
+       p.steam_id::TEXT                     AS steam_id,
+       m.name                              AS map,
+       r.mode                              AS mode,
+       r.time_ms                           AS time_ms,
+       r.points                            AS points,
+       to_char(r.created_at, 'YYYY-MM-DD')  AS date
+FROM records r
+JOIN players p ON p.steam_id = r.player_steam_id
+JOIN maps m ON m.id = r.map_id
+WHERE r.mode = $1 AND r.stage = 0
+ORDER BY r.created_at DESC
+LIMIT $2
+"#;
 
-fn mode_index(mode: &str) -> u64 {
-    match mode {
-        "KZT" => 0,
-        "SKZ" => 1,
-        _ => 2,
-    }
-}
-
-pub fn mock_records() -> Vec<RecordEntry> {
-    let pool = name_pool();
-    let mut rows = Vec::with_capacity(PER_MODE * 3);
-    for (mode_idx, mode) in mock::MODES.iter().enumerate() {
-        let mut rng = mock::mulberry32(500 + mode_index(mode) * 31);
-        for i in 0..PER_MODE {
-            let days = (i / 2) as u64; // 每天约两条，按时间倒序即最新 20 条
-            rows.push(RecordEntry {
-                player: pool[(i + mode_idx * 7) % pool.len()].clone(),
-                map: mock::MAPS[(rng() * mock::MAPS.len() as f64) as usize].to_string(),
-                mode: mode.to_string(),
-                time: mock::mock_record_time(&mut rng),
-                points: 600 + (rng() * 351.0) as u32,
-                date: mock::days_ago_to_date(days),
-            });
-        }
-    }
-    rows
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn twenty_per_mode_desc() {
-        let rows = mock_records();
-        for mode in mock::MODES {
-            let items: Vec<_> = rows.iter().filter(|r| &r.mode == mode).collect();
-            assert_eq!(items.len(), PER_MODE);
-            assert!(items.windows(2).all(|w| w[0].date >= w[1].date));
-        }
-    }
+/// 某模式最新记录。
+pub async fn latest_by_mode(
+    pool: &PgPool,
+    mode: &str,
+    limit: i64,
+) -> Result<Vec<RecordEntry>, sqlx::Error> {
+    let rows: Vec<Row> = sqlx::query_as(SQL)
+        .bind(mode)
+        .bind(limit)
+        .fetch_all(pool)
+        .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| RecordEntry {
+            player: r.player,
+            steam_id64: r.steam_id,
+            map: r.map,
+            mode: r.mode,
+            time: format_duration_ms(r.time_ms),
+            points: i64::from(r.points),
+            date: r.date,
+        })
+        .collect())
 }

@@ -1,13 +1,6 @@
 //! cngokz-backend 程序入口：初始化日志 → 加载配置 → 构建共享状态 → 装配应用 → 启动监听。
 
-mod app;
-mod config;
-mod errors;
-mod infrastructure;
-mod middleware;
-mod modules;
-mod state;
-
+use cngokz_backend::{app, config, modules, state};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
@@ -25,7 +18,10 @@ async fn main() {
 
     let config = config::AppConfig::from_env();
     let state = state::AppState::new(config.clone());
-    let app = app::create_app(state);
+    let app = app::create_app(state.clone());
+
+    // 外部数据同步后台任务：启动种子 + 定时增量 + 按需回源队列（PROJECT §9.5）
+    tokio::spawn(modules::sync::worker::run(state));
 
     let addr = config.bind_addr();
     tracing::info!(
