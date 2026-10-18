@@ -2,10 +2,14 @@
 //! 首次访问（本地无该玩家数据）时入队后台同步，立即返回已有数据 + `syncing = true`。
 
 use super::{models::PlayerProfile, repository};
-use crate::{errors::AppError, modules::sync, state::AppState};
+use crate::{
+    errors::AppError,
+    modules::{mode, sync},
+    state::AppState,
+};
 
-/// 最近成绩返回条数。
-pub const RECENT_LIMIT: i64 = 50;
+/// 每个模式返回的最近有分成绩条数。
+pub const RECENT_PER_MODE: i64 = 20;
 
 /// SteamID64：17 位纯数字。
 pub fn parse_steam_id(raw: &str) -> Result<i64, AppError> {
@@ -31,7 +35,12 @@ pub async fn profile(state: &AppState, raw: &str) -> Result<PlayerProfile, AppEr
     }
 
     let recent_records = if player.is_some() {
-        repository::recent_records(&state.db, steam_id, RECENT_LIMIT).await?
+        // 按模式分别取，避免某一模式占满列表（前端也按模式分组展示）
+        let mut out = Vec::with_capacity((RECENT_PER_MODE as usize) * mode::MODES.len());
+        for m in mode::MODES {
+            out.extend(repository::recent_records(&state.db, steam_id, m, RECENT_PER_MODE).await?);
+        }
+        out
     } else {
         Vec::new()
     };

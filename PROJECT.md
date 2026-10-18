@@ -49,7 +49,8 @@
    `steam://rungameid/<CS_APP_ID>//+connect ip:port` 拉起 Steam 客户端
    （`CS_APP_ID` 常量默认 `4465480`，集中在前端 `ServersPage.vue`，便于后续更换）。
 6. 个人资料：玩家统计、完成地图、个人记录；最近成绩与「已同步成绩」计数均**只统计有分记录
-   （`points > 0`）**，不展示未破个人记录/未计分的完成。
+   （`points > 0`）**，不展示未破个人记录/未计分的完成。最近成绩**按 KZT/SKZ/VNL 三列分组**，
+   每条含地图缩略图 + 地图名（点击进地图详情）、关卡、完成时间、分数、日期；每模式最多 20 条。
 7. Steam 登录：当前为模拟，需接 Steam OpenID 真实登录。
 8. 封禁名单（新增）：封禁玩家公示，每行含头像、名称、SteamID64、封禁理由、
    封禁时间、封禁服务器、详细数据（地图·模式·异常成绩·Demo 编号）；支持名称模糊 /
@@ -272,7 +273,8 @@ JSON 一律 snake_case，与前后端类型一一对应。
     ip/port 仅供复制按钮，页面不渲染明文）
   - 服务器上报（§9.11）：`POST /api/v1/ingest/servers`（X-ApiKey，插件上报实时人数/地图/玩家，
     与 Steam 发现以 `(ip, port)` 合并，插件优先）
-  - 玩家：`GET /api/v1/players/{steam_id64}`（个人资料，首次访问触发后台同步）
+  - 玩家：`GET /api/v1/players/{steam_id64}`（个人资料，首次访问触发后台同步；`recent_records`
+    按模式各最多 20 条有分成绩，含 `map_id` 供地图图片/详情跳转）
   - 记录：`GET /api/v1/records`（含 `steam_id64` / `map_id`，供头像、资料页与地图详情跳转；
     含 `created_at` 上传时间）
   - 统计：`GET /api/v1/stats`（首页计数）
@@ -585,6 +587,9 @@ POST /api/v2.0/records                 X-ApiKey: <key>
   实测 `kz_catalyst_gfix` 三模式 PRO/TP 均有数据，`kz_apricity_v3` 本身只有 KZT 数据（非 bug）。
 - 当前：过滤无分成绩（2026年10月19日，`develop`）：最新记录与个人资料「最近成绩」只查
   `points > 0`（未破个人记录/未进计分范围的不再显示），个人资料「已同步成绩」计数同口径。
+- 当前：个人资料最近成绩分组 + 地图缩略图（2026年10月19日，`develop`）：`PlayerRecordEntry` 增
+  `map_id`；`recent_records` 改为按模式查询（每模式 20 条有分成绩）；页面重做为 KZT/SKZ/VNL
+  三列，每条含地图缩略图/地图名（点击进 `/maps/:id`）/关卡/时间/分数/日期。
 - 下一步（按序）：
   1. ~~旧阶段（vanilla 原型 + 单文件后端）~~ ✅ 已归档/替换
   2. ~~数据接入落地（§9）：`sources/` + `sync_jobs` + `scoring` + `0002/0003` + `ingest`；

@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { computed, h, onUnmounted, ref, watch } from 'vue'
-import { NAlert, NAvatar, NButton, NCard, NDataTable, NInput, NSpin } from 'naive-ui'
+import { computed, onUnmounted, ref, watch } from 'vue'
+import { NAlert, NAvatar, NButton, NCard, NDataTable, NInput, NSpin, NTag } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useApi } from '@/composables/useApi'
+import { MODES } from '@/types/common'
+import type { Mode } from '@/types/common'
 import { avatarUrl } from '@/utils/avatar'
 import { formatNumber } from '@/utils/format'
+import { mapImage } from '@/utils/mapImage'
 import { fetchProfile } from './api'
-import type { PlayerRecordEntry, PlayerScoreEntry } from './types'
+import type { PlayerScoreEntry } from './types'
 
 const route = useRoute()
 const router = useRouter()
@@ -65,14 +68,19 @@ const modeColumns: DataTableColumns<PlayerScoreEntry> = [
   { title: '已同步成绩', key: 'records', width: 110 },
 ]
 
-const recordColumns: DataTableColumns<PlayerRecordEntry> = [
-  { title: '地图', key: 'map' },
-  { title: '模式', key: 'mode', width: 80 },
-  { title: '关卡', key: 'stage', width: 70, render: (r) => (r.stage === 0 ? '主关' : `B${r.stage}`) },
-  { title: '时间', key: 'time', width: 120, render: (r) => h('span', { class: 'mono' }, r.time) },
-  { title: '分数', key: 'points', width: 90, render: (r) => (r.points > 0 ? r.points : '—') },
-  { title: '日期', key: 'date', width: 120 },
-]
+/** 最近成绩按模式分组（后端已按模式各取 20 条有分记录）。 */
+const recentByMode = computed(() =>
+  MODES.map((m: Mode) => ({
+    mode: m,
+    records: (data.value?.recent_records ?? []).filter((r) => r.mode === m),
+  })),
+)
+
+/** 地图缩略图加载失败时隐藏，露出底色占位。 */
+function onImageError(e: Event): void {
+  const img = e.target as HTMLImageElement
+  img.style.display = 'none'
+}
 </script>
 
 <template>
@@ -81,7 +89,7 @@ const recordColumns: DataTableColumns<PlayerRecordEntry> = [
     <p class="page-sub">按 SteamID64 查询，首次查询会在后台从上游同步该玩家数据</p>
   </div>
 
-  <NCard title="玩家查询">
+  <NCard title="玩家查询" class="query-card">
     <div class="toolbar">
       <NInput
         v-model:value="input"
@@ -91,63 +99,126 @@ const recordColumns: DataTableColumns<PlayerRecordEntry> = [
       />
       <NButton type="primary" @click="submit">查询</NButton>
     </div>
-
     <NAlert v-if="!steamId" type="info">
       直接访问 <code>/profile/&lt;SteamID64&gt;</code>，或点击排行榜 / 封禁名单 / 地图榜中的玩家名进入。
     </NAlert>
-
-    <NSpin v-else :show="loading">
-      <NAlert v-if="error" type="error" style="margin-bottom: 12px">{{ error }}</NAlert>
-      <NAlert v-if="data?.syncing" type="info" style="margin-bottom: 12px">
-        该玩家数据正在后台同步，页面稍后自动刷新（首次约需十几秒）。
-      </NAlert>
-
-      <div v-if="data" class="profile-hero">
-        <NAvatar :src="avatarUrl(data.steam_id64, data.avatar)" :size="72" round class="profile-avatar" />
-        <div class="profile-info">
-          <div class="profile-name">{{ data.name || '未知玩家' }}</div>
-          <div class="profile-meta">
-            <span class="mono profile-steam">{{ data.steam_id64 }}</span>
-            <span v-if="data.region" class="chip">{{ data.region }}</span>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="scores.length" class="panel">
-        <div class="panel-head">
-          <div>
-            <div class="panel-title">模式积分</div>
-            <div class="panel-sub">全球积分为上游口径，本站合计仅含已同步成绩</div>
-          </div>
-        </div>
-        <NDataTable :columns="modeColumns" :data="scores" :pagination="false" />
-      </div>
-      <NAlert v-else-if="data && !data.syncing" type="warning" style="margin-bottom: 12px">
-        上游没有该玩家的榜单记录（可能未上榜或 SteamID64 有误）。
-      </NAlert>
-
-      <div v-if="data?.recent_records?.length" class="panel">
-        <div class="panel-head">
-          <div>
-            <div class="panel-title">最近成绩</div>
-            <div class="panel-sub">来自本站已同步的成绩记录</div>
-          </div>
-        </div>
-        <NDataTable
-          :columns="recordColumns"
-          :data="data.recent_records"
-          :pagination="{ pageSize: 20 }"
-        />
-      </div>
-
-      <div class="back">
-        <RouterLink to="/leaderboard">← 返回排行榜</RouterLink>
-      </div>
-    </NSpin>
   </NCard>
+
+  <NSpin v-if="steamId" :show="loading">
+    <NAlert v-if="error" type="error" style="margin-bottom: 12px">{{ error }}</NAlert>
+    <NAlert v-if="data?.syncing" type="info" style="margin-bottom: 12px">
+      该玩家数据正在后台同步，页面稍后自动刷新（首次约需十几秒）。
+    </NAlert>
+
+    <div v-if="data" class="profile-hero">
+      <NAvatar :src="avatarUrl(data.steam_id64, data.avatar)" :size="72" round class="profile-avatar" />
+      <div class="profile-info">
+        <div class="profile-name">{{ data.name || '未知玩家' }}</div>
+        <div class="profile-meta">
+          <span class="mono profile-steam">{{ data.steam_id64 }}</span>
+          <span v-if="data.region" class="chip">{{ data.region }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="scores.length" class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">模式积分</div>
+          <div class="panel-sub">全球积分为上游口径，本站合计仅含已同步成绩</div>
+        </div>
+      </div>
+      <NDataTable :columns="modeColumns" :data="scores" :pagination="false" />
+    </div>
+    <NAlert v-else-if="data && !data.syncing" type="warning" style="margin-bottom: 12px">
+      上游没有该玩家的榜单记录（可能未上榜或 SteamID64 有误）。
+    </NAlert>
+
+    <section class="section recent-section">
+      <div class="section-header">
+        <h2 class="section-title">最近成绩</h2>
+        <span class="section-note">按模式分组 · 仅显示有分成绩 · 点击地图查看详情</span>
+      </div>
+
+      <div class="recent-columns">
+        <div v-for="col in recentByMode" :key="col.mode" class="panel recent-col">
+          <div class="panel-head">
+            <div class="rec-head">
+              <span class="mode-dot" />
+              {{ col.mode }}
+            </div>
+            <div class="panel-head-extra">
+              <NTag type="success" size="small">共 {{ col.records.length }} 条</NTag>
+            </div>
+          </div>
+
+          <div class="rec-list">
+            <div
+              v-for="r in col.records"
+              :key="`${r.map_id}-${r.stage}-${r.time}-${r.date}`"
+              class="rec-row"
+            >
+              <RouterLink
+                class="rec-thumb"
+                :to="`/maps/${r.map_id}`"
+                :title="`查看 ${r.map} 详情`"
+              >
+                <div class="rec-thumb-fallback">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3Zm0 0v15m6-12v15" />
+                  </svg>
+                </div>
+                <img
+                  :src="mapImage(r.map, 'thumbnails')"
+                  :alt="r.map"
+                  loading="lazy"
+                  @error="onImageError"
+                />
+              </RouterLink>
+
+              <div class="rec-body">
+                <div class="rec-line">
+                  <RouterLink class="rec-map" :to="`/maps/${r.map_id}`" :title="r.map">
+                    {{ r.map }}
+                  </RouterLink>
+                  <span class="rec-time mono">{{ r.time }}</span>
+                </div>
+                <div class="rec-line rec-meta">
+                  <span>{{ r.stage === 0 ? '主关' : `B${r.stage}` }}</span>
+                  <span class="sep">·</span>
+                  <span class="rec-points mono">{{ r.points }} 分</span>
+                  <span class="sep">·</span>
+                  <span class="mono">{{ r.date }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="!col.records.length" class="rec-empty">暂无有分成绩</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="back">
+      <RouterLink to="/leaderboard">← 返回排行榜</RouterLink>
+    </div>
+  </NSpin>
 </template>
 
 <style scoped>
+.query-card {
+  margin-bottom: 20px;
+}
+
 .profile-hero {
   display: flex;
   align-items: center;
@@ -188,13 +259,180 @@ const recordColumns: DataTableColumns<PlayerRecordEntry> = [
   color: var(--text-muted);
 }
 
+/* ---------- 最近成绩（三模式并排） ---------- */
+.recent-section {
+  margin-top: 26px;
+}
+
+.section-note {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.recent-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+/* 同行面板取消全局「相邻面板上间距」，否则第 2/3 列会下沉 */
+.recent-columns .panel + .panel {
+  margin-top: 0;
+}
+
+.rec-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.mode-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(47, 111, 79, 0.14);
+}
+
+.rec-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.rec-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+}
+
+.rec-row + .rec-row {
+  border-top: 1px solid var(--border-color);
+}
+
+.rec-row:hover {
+  background-color: #f6f9f7;
+}
+
+.rec-thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 72px;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-subtle);
+  overflow: hidden;
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.rec-thumb:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(28, 28, 26, 0.16);
+}
+
+.rec-thumb-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.rec-thumb img {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.rec-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.rec-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rec-line + .rec-line {
+  margin-top: 2px;
+}
+
+.rec-map {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rec-map:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.rec-time {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.rec-meta {
+  justify-content: flex-start;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.rec-meta .sep {
+  color: var(--border-strong);
+}
+
+.rec-points {
+  color: #8a6a2f;
+  font-weight: 700;
+}
+
+.rec-empty {
+  padding: 36px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
 .back {
-  margin-top: 16px;
+  margin-top: 20px;
 }
 
 .back a {
   color: var(--accent);
   text-decoration: none;
   font-weight: 600;
+}
+
+@media (max-width: 1080px) {
+  .recent-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .recent-columns .panel + .panel {
+    margin-top: 16px;
+  }
 }
 </style>

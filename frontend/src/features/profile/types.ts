@@ -14,6 +14,8 @@ export interface PlayerScoreEntry {
 }
 
 export interface PlayerRecordEntry {
+  /** 地图 id：用于地图图片与跳转地图详情 */
+  map_id: number
   map: string
   mode: string
   stage: number

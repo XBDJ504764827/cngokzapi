@@ -10,6 +10,25 @@
 
 ---
 
+## 2026年10月19日 05时33分32秒 个人资料最近成绩按模式分组 + 地图缩略图/详情跳转
+
+- 背景：个人资料「最近成绩」混合三种模式且无地图图片，不便于辨认；用户要求按模式分三类展示，
+  显示地图图片，并支持点击地图名查看地图详情。
+- 变更内容：
+  - 后端 `players`：`PlayerRecordEntry` 增 `map_id`；`recent_records` 改为按模式查询
+    （`mode` + `points > 0`，每模式 20 条）；service 循环三模式拼接，避免单一模式占满列表。
+  - 前端 `ProfilePage` 重做：查询卡独立；英雄卡 + 模式积分表；最近成绩分 KZT/SKZ/VNL 三列，
+    每条含地图缩略图（缩略图与地图名均可点击进 `/maps/:id`）、关卡（主关/Bn）、完成时间、
+    分数、日期；无成绩的模式显示「暂无有分成绩」；≤1080px 堆叠。
+  - 地图缩略图走 `utils/mapImage.ts` 的 `thumbnails`，缺图有占位。
+- 涉及文件：`backend/src/modules/players/{models,repository,service}.rs`、
+  `frontend/src/features/profile/{types.ts,ProfilePage.vue}`、`PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无迁移；`GET /api/v1/players/{steam_id64}` 的 `recent_records`
+  每项新增 `map_id`，内容改为每模式最多 20 条有分成绩。
+- 测试与结果（北京时间）：`cargo fmt`/`build`/`clippy -D warnings`、`npm run build` 全过；
+  实测 Flonnych：KZT 20 / SKZ 0 / VNL 2 条，0 分 0 条；Playwright 确认三列、22 个地图链接，
+  点击地图名跳转 `/maps/44`。
+
 ## 2026年10月19日 05时27分57秒 过滤无分成绩（最新记录 / 个人资料最近成绩）
 
 - 背景：最新记录与个人资料「最近成绩」中出现大量 0 分成绩（玩家未打破自己的记录 / 未进入计分范围，

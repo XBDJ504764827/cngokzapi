@@ -32,6 +32,8 @@ pub struct PlayerScoreEntry {
 
 #[derive(Clone, Serialize)]
 pub struct PlayerRecordEntry {
+    /// 地图 id：用于地图图片与跳转地图详情。
+    pub map_id: i64,
     pub map: String,
     pub mode: String,
     pub stage: i32,

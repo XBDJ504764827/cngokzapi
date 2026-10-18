@@ -77,6 +77,7 @@ pub async fn scores(pool: &PgPool, steam_id: i64) -> Result<Vec<PlayerScoreEntry
 
 #[derive(FromRow)]
 struct RecordRow {
+    map_id: i64,
     map: String,
     mode: String,
     stage: i32,
@@ -85,26 +86,29 @@ struct RecordRow {
     date: String,
 }
 
-/// 玩家最近成绩。
+/// 某玩家某模式的最近有分成绩（按上传时间倒序）。
 pub async fn recent_records(
     pool: &PgPool,
     steam_id: i64,
+    mode: &str,
     limit: i64,
 ) -> Result<Vec<PlayerRecordEntry>, sqlx::Error> {
     let rows: Vec<RecordRow> = sqlx::query_as(
-        r#"SELECT m.name                                AS map,
-                  r.mode                                AS mode,
-                  r.stage                               AS stage,
-                  r.time_ms                             AS time_ms,
-                  r.points                              AS points,
-                  to_char(r.created_at, 'YYYY-MM-DD')    AS date
+        r#"SELECT m.id                                 AS map_id,
+                  m.name                               AS map,
+                  r.mode                               AS mode,
+                  r.stage                              AS stage,
+                  r.time_ms                            AS time_ms,
+                  r.points                             AS points,
+                  to_char(r.created_at, 'YYYY-MM-DD')   AS date
            FROM records r
            JOIN maps m ON m.id = r.map_id
-           WHERE r.player_steam_id = $1 AND r.points > 0
+           WHERE r.player_steam_id = $1 AND r.mode = $2 AND r.points > 0
            ORDER BY r.created_at DESC
-           LIMIT $2"#,
+           LIMIT $3"#,
     )
     .bind(steam_id)
+    .bind(mode)
     .bind(limit)
     .fetch_all(pool)
     .await?;
@@ -112,6 +116,7 @@ pub async fn recent_records(
     Ok(rows
         .into_iter()
         .map(|r| PlayerRecordEntry {
+            map_id: r.map_id,
             map: r.map,
             mode: r.mode,
             stage: r.stage,
