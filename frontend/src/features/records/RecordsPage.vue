@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { computed, h } from 'vue'
-import { NAlert, NAvatar, NCard, NDataTable, NEmpty, NSpin, NTag } from 'naive-ui'
-import type { DataTableColumns } from 'naive-ui'
+import { computed } from 'vue'
+import { NAlert, NAvatar, NCard, NEmpty, NSpin, NTag } from 'naive-ui'
 import { RouterLink } from 'vue-router'
 import { useApi } from '@/composables/useApi'
 import { MODES } from '@/types/common'
@@ -11,31 +10,6 @@ import { fetchRecords } from './api'
 import type { RecordEntry } from './types'
 
 const { data, loading, error } = useApi(fetchRecords)
-
-// 列宽固定 + 省略号（hover 出完整内容），确保任何长度都不会换行
-const columns: DataTableColumns<RecordEntry> = [
-  {
-    title: '玩家',
-    key: 'player',
-    width: 132,
-    render: (row) =>
-      h('div', { class: 'player-inline' }, [
-        h(NAvatar, { src: avatarUrl(row.steam_id64), size: 22, round: true }),
-        h(
-          RouterLink,
-          { to: `/profile/${row.steam_id64}`, class: 'player-link', title: row.player },
-          { default: () => row.player },
-        ),
-      ]),
-  },
-  { title: '地图', key: 'map', width: 130, ellipsis: { tooltip: true } },
-  { title: '时间', key: 'time', width: 78, render: (row) => h('span', { class: 'time-value' }, row.time) },
-  { title: '分数', key: 'points', width: 58, render: (row) => h('span', { class: 'mono' }, row.points) },
-  { title: '日期', key: 'date', width: 88 },
-]
-
-/** 单列总宽（玩家/地图/时间/分数/日期），窄列时横向滚动而不换行。 */
-const TABLE_WIDTH = 486
 
 function rowsFor(mode: Mode): RecordEntry[] {
   return (data.value ?? []).filter((r) => r.mode === mode).slice(0, 20)
@@ -65,13 +39,29 @@ const hasData = computed(() => (data.value ?? []).length > 0)
         <template #header-extra>
           <NTag type="success" size="small">最新 20 条</NTag>
         </template>
-        <NDataTable
-          :columns="columns"
-          :data="rowsFor(mode)"
-          :pagination="false"
-          :scroll-x="TABLE_WIDTH"
-          size="small"
-        />
+
+        <!-- 两行式条目：一列内即可完整展示玩家/地图/时间/分数/日期，无需横向滚动 -->
+        <div class="rec-list">
+          <div v-for="(r, i) in rowsFor(mode)" :key="i" class="rec-row">
+            <NAvatar :src="avatarUrl(r.steam_id64)" :size="26" round class="rec-avatar" />
+            <div class="rec-body">
+              <div class="rec-line">
+                <RouterLink class="rec-player" :to="`/profile/${r.steam_id64}`" :title="r.player">
+                  {{ r.player }}
+                </RouterLink>
+                <span class="rec-time mono">{{ r.time }}</span>
+              </div>
+              <div class="rec-line">
+                <span class="rec-map" :title="r.map">{{ r.map }}</span>
+                <span class="rec-meta">
+                  <span class="rec-points mono">{{ r.points }} 分</span>
+                  <span class="rec-dot">·</span>
+                  <span class="rec-date mono">{{ r.date }}</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
       </NCard>
     </div>
   </NSpin>
@@ -82,6 +72,7 @@ const hasData = computed(() => (data.value ?? []).length > 0)
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
+  align-items: start;
 }
 
 .records-col-title {
@@ -101,38 +92,94 @@ const hasData = computed(() => (data.value ?? []).length > 0)
   box-shadow: 0 0 0 3px rgba(47, 111, 79, 0.14);
 }
 
-:deep(.player-inline) {
+.rec-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.rec-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
+  padding: 8px 2px;
+}
+
+.rec-row + .rec-row {
+  border-top: 1px solid var(--border-color);
+}
+
+.rec-avatar {
+  flex-shrink: 0;
+  background-color: var(--bg-subtle);
+}
+
+.rec-body {
+  flex: 1;
   min-width: 0;
 }
 
-:deep(.player-link) {
+.rec-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.rec-line + .rec-line {
+  margin-top: 2px;
+}
+
+.rec-player {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--accent);
   text-decoration: none;
-  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-:deep(.player-link:hover) {
+.rec-player:hover {
   color: var(--accent-hover);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
-:deep(.time-value) {
-  font-family: var(--font-mono);
-  font-weight: 600;
+.rec-time {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
   color: var(--accent);
 }
 
-/* 单元格一律不换行，超出用省略号（配合 ellipsis 列配置） */
-:deep(.n-data-table-td),
-:deep(.n-data-table-th) {
+.rec-map {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rec-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.rec-points {
+  color: #8a6a2f;
+  font-weight: 600;
+}
+
+.rec-dot {
+  color: var(--border-strong);
 }
 
 @media (max-width: 1080px) {

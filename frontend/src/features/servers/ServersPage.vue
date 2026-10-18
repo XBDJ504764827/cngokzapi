@@ -529,6 +529,8 @@ function region(server: ServerEntry): string {
   display: flex;
   gap: 8px;
   margin-top: 14px;
+  /* 主操作靠左、次操作（复制 IP）靠右，避免两个按钮挤在一起 */
+  justify-content: space-between;
 }
 
 /* ---------- 列状排列 ---------- */
