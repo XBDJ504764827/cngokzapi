@@ -12,6 +12,12 @@ export interface MapSummary {
   workshop_id: number | null
   filesize: number
   validated: boolean
+  /** 当前模式下主关最快成绩（WR）保持者；null = 本地暂无该模式成绩 */
+  wr_player: string | null
+  /** WR 耗时（M:SS.mmm） */
+  wr_time: string | null
+  /** WR 记录日期 YYYY-MM-DD */
+  wr_date: string | null
 }
 
 export interface MapRecordEntry {

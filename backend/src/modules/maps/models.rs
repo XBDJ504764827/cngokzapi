@@ -16,6 +16,12 @@ pub struct MapSummary {
     pub workshop_id: Option<i64>,
     pub filesize: i64,
     pub validated: bool,
+    /// 当前模式主关最快成绩（WR）保持者；本地暂无该模式成绩时为 null。
+    pub wr_player: Option<String>,
+    /// WR 耗时（`M:SS.mmm`）。
+    pub wr_time: Option<String>,
+    /// WR 记录日期 `YYYY-MM-DD`。
+    pub wr_date: Option<String>,
 }
 
 /// 地图榜条目（同一玩家取最佳成绩）。

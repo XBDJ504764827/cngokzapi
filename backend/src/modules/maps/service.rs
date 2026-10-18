@@ -28,7 +28,7 @@ pub async fn list(state: &AppState, q: MapsQuery) -> Result<Vec<MapSummary>, App
 /// 地图详情；`syncing` 为真表示整图同步尚未完成（已入队，稍后重试可见完整成绩）。
 pub async fn detail(state: &AppState, id: i64, m: Option<&str>) -> Result<MapDetail, AppError> {
     let m = mode::validate(m)?;
-    let map = repository::get_map(&state.db, id)
+    let mut map = repository::get_map(&state.db, id)
         .await?
         .ok_or_else(|| AppError::NotFound("地图不存在".to_string()))?;
 
@@ -40,6 +40,13 @@ pub async fn detail(state: &AppState, id: i64, m: Option<&str>) -> Result<MapDet
     }
 
     let records = repository::top_records(&state.db, map.id, m, TOP_LIMIT).await?;
+
+    // WR = 主关榜第一名，直接复用避免重复查询
+    if let Some(first) = records.first() {
+        map.wr_player = Some(first.player.clone());
+        map.wr_time = Some(first.time.clone());
+        map.wr_date = Some(first.date.clone());
+    }
 
     Ok(MapDetail {
         map,

@@ -32,8 +32,9 @@
    活跃度筛选（近 7 / 30 天、超 30 天未玩）、多字段排序，计数以标题右侧徽章展示。
    条目字段后续接真实数据时保持兼容（后端 `modules/leaderboard/repository.rs` 同口径）。
 3. 地图列表：浏览全部地图，支持难度（按当前模式 Tier）筛选与名称搜索；
-   **卡片网格排列**（仿 gokz.top）：地图图片、地图名称、制作人、难度徽章、
-   是否有奖励关（Bonus ×N / 无 Bonus）；每页 24 张分页。图片走 `utils/mapImage.ts`
+   **卡片网格排列**（仿 gokz.top，宽屏默认 4 列，窄屏降为 3 / 2 / 1 列）：地图图片、
+   地图名称、制作人、难度徽章、是否有奖励关（Bonus ×N / 无 Bonus），
+   并显示当前模式主关 WR（记录人 + 耗时 + 日期）；每页 24 张分页。图片走 `utils/mapImage.ts`
    统一出口（当前用 KZGlobalTeam 公开图库，后续可换自建图床）。
 4. 地图详情：单个地图信息 + 前 100 名排行。
 5. 服务器列表：全部在线服务器详细信息，提供**两种视图切换**——卡片排列（grid）与
@@ -245,7 +246,8 @@ JSON 一律 snake_case，与前后端类型一一对应。
   - 榜单：`GET /api/v1/leaderboard?mode=KZT`（本站名次，按本站汇总分；前端本地搜索/筛选/排序）
   - 记录：`GET /api/v1/records`（三模式各最新 20 条）
   - 封禁：`GET /api/v1/bans?query=&page=&per_page=`（分页信封）
-  - 地图：`GET /api/v1/maps?query=&tier=&mode=`（返回含 `mappers` / 三模式 tier / `bonuses`）、
+  - 地图：`GET /api/v1/maps?query=&tier=&mode=`（返回含 `mappers` / 三模式 tier / `bonuses` /
+    当前模式 WR `wr_player`·`wr_time`·`wr_date`）、
     `GET /api/v1/maps/{id}?mode=KZT`（详情含主关前 100 与 `syncing` 标记）
   - 服务器：`GET /api/v1/servers`（仅在线公开，含 `map_tier` / `player_names`；ip/port 仅供复制按钮，
     页面不渲染明文）
@@ -503,6 +505,11 @@ POST /api/v2.0/records                 X-ApiKey: <key>
   地图详情新增英雄区，个人资料新增头像英雄卡；新增公共组件 `RankBadge`，
   修复 DataTable 列渲染类不命中 scoped CSS、`PlayerCell` SteamID64 换行、
   600px 统计卡挤出 4 列等问题；`npm run build` 通过，1440/1100/860/600 四档截图核对，无 API/DB 变化。
+- 当前：地图列表 4 列 + 当前模式 WR（2026-10-18，`develop`）：地图卡片改为宽屏默认 4 列
+  （1100 / 860 / 520 降 3 / 2 / 1 列），并在卡片显示当前模式主关 WR：记录人 + 耗时 + 日期。
+  后端 `GET /api/v1/maps` 用 `LEFT JOIN LATERAL`（复用 `idx_records_map_place`，按 `time_ms` 取一条）
+  追加 `wr_player`/`wr_time`/`wr_date`，地图详情复用主关榜第一名填充；`cargo test` 23 passed、
+  `clippy`/`fmt` 与 `npm run build` 均过。
 - 下一步（按序）：
   1. ~~旧阶段（vanilla 原型 + 单文件后端）~~ ✅ 已归档/替换
   2. ~~数据接入落地（§9）：`sources/` + `sync_jobs` + `scoring` + `0002/0003` + `ingest`；

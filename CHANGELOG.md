@@ -10,6 +10,29 @@
 
 ---
 
+## 2026-10-18 地图列表改 4 列并显示当前模式 WR（记录人 / 耗时 / 日期）
+
+- 背景：用户反馈"地图列表中三列显示的有点太少了"，要求改 4 列，并在卡片上显示当前地图的
+  WR 记录人与记录时间信息。
+- 变更内容：
+  - 后端：`GET /api/v1/maps` 每张地图新增当前模式主关 WR —— 用 `LEFT JOIN LATERAL`
+    （`ORDER BY time_ms LIMIT 1`，命中 `idx_records_map_place`）取记录人与 `created_at`；
+    `MapSummary` 增 `wr_player` / `wr_time`（`M:SS.mmm`）/ `wr_date`（`YYYY-MM-DD`）。
+    地图详情的 `map.wr_*` 直接用主关榜第一名填充，不重复查询；无成绩的图为 null
+    （前端显示"暂无 WR 记录"）。
+  - 前端：地图卡片网格宽屏默认 4 列（1100 / 860 / 520 依次降为 3 / 2 / 1 列）；
+    卡片底部新增 WR 行（墨绿 WR 徽章 + 记录人 + 绿色等宽耗时，日期固定另起一行保证对齐）。
+  - 类型：`features/maps/types.ts` 的 `MapSummary` 同步三个新字段。
+- 涉及文件：修改 `backend/src/modules/maps/{models,repository,service}.rs`、
+  `frontend/src/features/maps/{types.ts,MapsPage.vue}`、`PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无迁移；`GET /api/v1/maps` 响应新增 `wr_player` / `wr_time` / `wr_date`
+  （additive，旧客户端不受影响）。
+- 测试与结果（2026-10-18）：
+  - `cargo fmt --check`、`cargo clippy --all-targets -- -D warnings`、`cargo test`（23 passed）、
+    `npm run build`（含 `vue-tsc -b`）全部通过。
+  - 实测 `GET /api/v1/maps?mode=KZT`：如 `bkz_apricity_v3` → WR `Ballistic Bacon 3:05.109 / 2023-07-02`。
+  - Playwright 截图核对 1440（4 列）/ 1100（3 列）/ 860（2 列），WR 行与日期对齐正常。
+
 ## 2026-10-17 全站视觉优化：面板体系 / 首页 Hero / 详情英雄区 / 名次徽章
 
 - 背景：用户反馈"当前页面有点简约单调了，你来操刀优化一下"。要求保持 PROJECT §2 设计约束

@@ -107,6 +107,18 @@ function openMap(id: number): void {
             <NTag v-if="m.bonuses > 0" size="small" type="success">Bonus ×{{ m.bonuses }}</NTag>
             <NTag v-else size="small">无 Bonus</NTag>
           </div>
+          <div
+            class="map-wr"
+            :title="m.wr_player ? `WR：${m.wr_player} · ${m.wr_time} · ${m.wr_date}` : '暂无 WR 记录'"
+          >
+            <template v-if="m.wr_player">
+              <span class="wr-badge">WR</span>
+              <span class="wr-player">{{ m.wr_player }}</span>
+              <span class="wr-time mono">{{ m.wr_time }}</span>
+              <span class="wr-date">{{ m.wr_date }}</span>
+            </template>
+            <span v-else class="wr-empty">暂无 WR 记录</span>
+          </div>
         </div>
       </div>
     </div>
@@ -123,8 +135,27 @@ function openMap(id: number): void {
 <style scoped>
 .maps-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+}
+
+/* 窄屏降列：4 → 3 → 2 → 1，保证卡片内容不挤压 */
+@media (max-width: 1100px) {
+  .maps-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .maps-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .maps-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .map-card {
@@ -138,7 +169,7 @@ function openMap(id: number): void {
 .map-thumbnail {
   position: relative;
   width: 100%;
-  height: 160px;
+  height: 150px;
   background-color: var(--bg-subtle);
   overflow: hidden;
 }
@@ -215,13 +246,13 @@ function openMap(id: number): void {
 }
 
 .map-content {
-  padding: 14px 16px 16px;
+  padding: 13px 15px 15px;
 }
 
 .map-title {
   font-size: 15px;
   font-weight: 600;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
@@ -241,6 +272,54 @@ function openMap(id: number): void {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* WR：当前模式主关最快成绩（记录人 + 耗时 + 日期） */
+.map-wr {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border-color);
+  font-size: 12px;
+}
+
+.wr-badge {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background-color: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.wr-player {
+  flex: 1 1 0;
+  min-width: 0;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wr-time {
+  flex-shrink: 0;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* 日期固定另起一行，保证同一行的卡片 WR 对齐 */
+.wr-date {
+  flex-basis: 100%;
+  color: var(--text-muted);
+}
+
+.wr-empty {
+  color: var(--text-muted);
 }
 
 .pager {
