@@ -10,6 +10,29 @@
 
 ---
 
+## 2026-10-18 服务器列表默认卡片排列 + 按社区分类
+
+- 背景：用户要求服务器列表默认卡片样式，并增加按社区名称分类（CNGOKZ / AXE / HIME 等）。
+- 变更内容：
+  - 后端新增 `modules/servers/category.rs`（纯函数 + 单测）：`community(name, group_name)` 优先
+    `group_name` 并去掉末尾通用词与编号（`AXE GOKZ`→`AXE`、`Node KZ Server`→`Node`）；缺失时从
+    名称推导——`【X】`/`[X]` 前缀、常见分隔符（双空格 / ` GOKZ` / ` KZ` / ` |` / ` #` / ` -` / `服`）
+    前的前缀，再归一化（`【HIME】GOKZ …`→`HIME`、`KZMANIA GOKZ 2`→`KZMANIA`、
+    `UB社区 攀岩竞速 #01 …`→`UB社区`、`Sunl 1服`→`Sunl`、`House of Climb  EU …`→`House of Climb`）。
+  - `ServerEntry` 与 `GET /api/v1/servers` 新增 `category` 字段。
+  - 前端：服务器页默认视图由列状改为**卡片**；新增社区分类筛选栏（计数倒序、可横向滚动，
+    分类消失时自动回到「全部」）；卡片图片左上角与列状视图 meta 均显示社区标签；搜索同时匹配社区名。
+- 涉及文件：新增 `backend/src/modules/servers/category.rs`；修改
+  `backend/src/modules/servers/{mod,models,repository}.rs`、
+  `frontend/src/features/servers/{types.ts,ServersPage.vue}`、`PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无迁移；`GET /api/v1/servers` 响应新增 `category`（additive）。
+- 测试与结果（2026-10-18）：
+  - `cargo test` **26 passed**（新增 3 个分类单测，覆盖用户给的三组示例与非 `group_name` 场景）、
+    `cargo clippy --all-targets -- -D warnings`、`cargo fmt --check`、`npm run build` 全过。
+  - 实测 89 台在线服务器归为 20 类：AXE 22 / House of Climb 16 / CNGOKZ 15 / FKZ 6 / UB社区 6 /
+    HIME 3（含 1 台 `group_name` 为空、靠 `【HIME】` 推导，与另 2 台合并）/ KZMANIA 3 …
+  - Playwright 截图核对：默认卡片、点 CNGOKZ 筛选（在线徽章变 15）、列状视图、600px 分类栏横向滚动。
+
 ## 2026-10-18 地图列表改 4 列并显示当前模式 WR（记录人 / 耗时 / 日期）
 
 - 背景：用户反馈"地图列表中三列显示的有点太少了"，要求改 4 列，并在卡片上显示当前地图的

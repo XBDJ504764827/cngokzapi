@@ -13,6 +13,8 @@ export interface ServerEntry {
   city: string | null
   region: string | null
   group_name: string | null
+  /** 社区分类（后端按 group_name / 服务器名归一化，如 CNGOKZ、AXE、HIME）。 */
+  category: string
   online: boolean
   /** 当前地图难度（0 = 未知） */
   map_tier: number

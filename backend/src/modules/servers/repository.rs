@@ -2,6 +2,7 @@
 
 use sqlx::{FromRow, PgPool};
 
+use super::category;
 use super::models::ServerEntry;
 
 #[derive(FromRow)]
@@ -40,21 +41,26 @@ pub async fn list_online(pool: &PgPool) -> Result<Vec<ServerEntry>, sqlx::Error>
 
     Ok(rows
         .into_iter()
-        .map(|r| ServerEntry {
-            id: r.id,
-            name: r.name,
-            map: r.map.unwrap_or_default(),
-            ip: r.ip,
-            port: r.port,
-            player_count: r.player_count,
-            max_players: r.max_players,
-            country: r.country,
-            city: r.city,
-            region: r.region,
-            group_name: r.group_name,
-            online: r.online,
-            map_tier: r.map_tier,
-            player_names: r.player_names,
+        .map(|r| {
+            // 先借用 name/group_name 算分类，避免字段求值时已被 move
+            let category = category::community(&r.name, r.group_name.as_deref());
+            ServerEntry {
+                id: r.id,
+                name: r.name,
+                map: r.map.unwrap_or_default(),
+                ip: r.ip,
+                port: r.port,
+                player_count: r.player_count,
+                max_players: r.max_players,
+                country: r.country,
+                city: r.city,
+                region: r.region,
+                group_name: r.group_name,
+                category,
+                online: r.online,
+                map_tier: r.map_tier,
+                player_names: r.player_names,
+            }
         })
         .collect())
 }

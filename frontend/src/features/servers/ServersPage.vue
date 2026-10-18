@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { NAlert, NButton, NEmpty, NInput, NSpin, NTag, useMessage } from 'naive-ui'
 import { useApi } from '@/composables/useApi'
 import { mapImage } from '@/utils/mapImage'
@@ -9,17 +9,37 @@ import type { ServerEntry } from './types'
 const message = useMessage()
 const { data, loading, error } = useApi(fetchServers)
 
-// 视图模式：grid（卡片排列）/ list（列状排列），默认列式（PROJECT §2）
-const view = ref<'grid' | 'list'>('list')
+// 视图模式：grid（卡片排列）/ list（列状排列），默认卡片排列
+const view = ref<'grid' | 'list'>('grid')
 const query = ref('')
+const activeCategory = ref('')
+
+// 按社区分类（后端 category）：计数倒序，同数量按名称排序
+const categories = computed(() => {
+  const counts = new Map<string, number>()
+  for (const s of data.value ?? []) counts.set(s.category, (counts.get(s.category) ?? 0) + 1)
+  return [...counts.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh-CN'))
+})
+
+// 上游下线某社区后自动回到「全部」，避免停在空筛选
+watch(categories, (list) => {
+  if (activeCategory.value && !list.some((c) => c.name === activeCategory.value)) {
+    activeCategory.value = ''
+  }
+})
 
 const rows = computed(() => {
   const q = query.value.trim().toLowerCase()
+  const cat = activeCategory.value
   return (data.value ?? []).filter((s) => {
+    if (cat && s.category !== cat) return false
     if (!q) return true
     return (
       s.name.toLowerCase().includes(q) ||
       s.map.toLowerCase().includes(q) ||
+      s.category.toLowerCase().includes(q) ||
       (s.group_name ?? '').toLowerCase().includes(q)
     )
   })
@@ -77,6 +97,23 @@ function region(server: ServerEntry): string {
     </div>
   </div>
 
+  <div class="category-bar">
+    <button class="cat-chip" :class="{ active: activeCategory === '' }" @click="activeCategory = ''">
+      全部<span class="cat-count">{{ data?.length ?? 0 }}</span>
+    </button>
+    <button
+      v-for="c in categories"
+      :key="c.name"
+      class="cat-chip"
+      :class="{ active: activeCategory === c.name }"
+      :title="c.name"
+      @click="activeCategory = c.name"
+    >
+      <span class="cat-name">{{ c.name }}</span>
+      <span class="cat-count">{{ c.count }}</span>
+    </button>
+  </div>
+
   <div class="toolbar">
     <NInput v-model:value="query" placeholder="搜索服务器名 / 地图 / 社区..." clearable style="max-width: 320px" />
   </div>
@@ -105,6 +142,7 @@ function region(server: ServerEntry): string {
             <span>{{ s.map || '未知地图' }}</span>
           </div>
           <img :src="mapImage(s.map)" :alt="s.map" loading="lazy" @error="onImageError" />
+          <span class="cat-tag">{{ s.category }}</span>
           <div class="server-status-badge"><span class="status-dot" /> 在线</div>
         </div>
         <div class="server-card-content">
@@ -160,6 +198,7 @@ function region(server: ServerEntry): string {
         <div class="server-list-info">
           <h3 class="server-name" :title="s.name">{{ s.name }}</h3>
           <div class="server-meta">
+            <span class="cat-tag small">{{ s.category }}</span>
             <span class="meta-strong" :title="s.map">{{ s.map || '—' }}</span>
             <span class="meta-sep">·</span>
             <span>{{ s.map_tier > 0 ? `Tier ${s.map_tier}` : 'Tier —' }}</span>
@@ -181,6 +220,104 @@ function region(server: ServerEntry): string {
 </template>
 
 <style scoped>
+/* 社区分类筛选：横向滚动，计数倒序 */
+.category-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.category-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.cat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  max-width: 200px;
+  padding: 5px 12px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  font-family: var(--font-base);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.cat-chip:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.cat-chip.active {
+  background-color: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.cat-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cat-count {
+  flex-shrink: 0;
+  padding: 0 7px;
+  border-radius: 999px;
+  background-color: var(--bg-subtle);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.cat-chip.active .cat-count {
+  background-color: rgba(47, 111, 79, 0.14);
+  color: var(--accent);
+}
+
+/* 卡片 / 列表上的社区标签 */
+.cat-tag {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  max-width: calc(100% - 110px);
+  padding: 3px 10px;
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.95);
+  box-shadow: var(--shadow-sm);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cat-tag.small {
+  position: static;
+  flex-shrink: 0;
+  max-width: 160px;
+  padding: 2px 9px;
+  background-color: var(--accent-soft);
+  box-shadow: none;
+  font-size: 12px;
+  color: var(--accent);
+}
+
 .view-switcher {
   display: flex;
   gap: 4px;

@@ -37,9 +37,11 @@
    并显示当前模式主关 WR（记录人 + 耗时 + 日期）；每页 24 张分页。图片走 `utils/mapImage.ts`
    统一出口（当前用 KZGlobalTeam 公开图库，后续可换自建图床）。
 4. 地图详情：单个地图信息 + 前 100 名排行。
-5. 服务器列表：全部在线服务器详细信息，提供**两种视图切换**——卡片排列（grid）与
-   列状排列（list，**默认**）；两种视图都显示当前地图图片、地图名、难度与区域、人数、
-   在线玩家昵称标签。地址一律不渲染明文，仅「复制 IP」按钮可用（防爬虫，见 §2 设计约束）。
+5. 服务器列表：全部在线服务器详细信息，提供**两种视图切换**——卡片排列（grid，**默认**）与
+   列状排列（list）；两种视图都显示当前地图图片、地图名、难度与区域、人数、社区标签、
+   在线玩家昵称标签。支持**按社区分类筛选**（后端 `servers/category.rs` 归一化：优先 `group_name`，
+   缺失时从服务器名推导，如 CNGOKZ / AXE / HIME；分类栏计数倒序）。
+   地址一律不渲染明文，仅「复制 IP」按钮可用（防爬虫，见 §2 设计约束）。
 6. 个人资料：玩家统计、完成地图、个人记录。
 7. Steam 登录：当前为模拟，需接 Steam OpenID 真实登录。
 8. 封禁名单（新增）：封禁玩家公示，每行含头像、名称、SteamID64、封禁理由、
@@ -249,8 +251,8 @@ JSON 一律 snake_case，与前后端类型一一对应。
   - 地图：`GET /api/v1/maps?query=&tier=&mode=`（返回含 `mappers` / 三模式 tier / `bonuses` /
     当前模式 WR `wr_player`·`wr_time`·`wr_date`）、
     `GET /api/v1/maps/{id}?mode=KZT`（详情含主关前 100 与 `syncing` 标记）
-  - 服务器：`GET /api/v1/servers`（仅在线公开，含 `map_tier` / `player_names`；ip/port 仅供复制按钮，
-    页面不渲染明文）
+  - 服务器：`GET /api/v1/servers`（仅在线公开，含 `map_tier` / `player_names` / `category`；
+    ip/port 仅供复制按钮，页面不渲染明文）
   - 玩家：`GET /api/v1/players/{steam_id64}`（个人资料，首次访问触发后台同步）
   - 记录：`GET /api/v1/records`（含 `steam_id64`，供头像与资料页跳转）
   - 统计：`GET /api/v1/stats`（首页计数）
@@ -510,6 +512,12 @@ POST /api/v2.0/records                 X-ApiKey: <key>
   后端 `GET /api/v1/maps` 用 `LEFT JOIN LATERAL`（复用 `idx_records_map_place`，按 `time_ms` 取一条）
   追加 `wr_player`/`wr_time`/`wr_date`，地图详情复用主关榜第一名填充；`cargo test` 23 passed、
   `clippy`/`fmt` 与 `npm run build` 均过。
+- 当前：服务器页默认卡片 + 社区分类（2026-10-18，`develop`）：视图默认改为卡片排列；
+  新增社区分类筛选栏（计数倒序、可横向滚动），卡片/列状均显示社区标签。
+  后端新增 `modules/servers/category.rs`（纯函数 + 单测）：优先 `group_name` 且去掉末尾通用词
+  （`AXE GOKZ`→`AXE`），缺失时从名称推导（`【HIME】…`→`HIME`、`House of Climb  EU …`→`House of Climb`、
+  `KZMANIA GOKZ 2`→`KZMANIA`），`GET /api/v1/servers` 新增 `category`；实测 89 台归为 20 类
+  （AXE 22 / House of Climb 16 / CNGOKZ 15 / HIME 3 …）；`cargo test` 26 passed、`clippy` 与前端构建均过。
 - 下一步（按序）：
   1. ~~旧阶段（vanilla 原型 + 单文件后端）~~ ✅ 已归档/替换
   2. ~~数据接入落地（§9）：`sources/` + `sync_jobs` + `scoring` + `0002/0003` + `ingest`；
