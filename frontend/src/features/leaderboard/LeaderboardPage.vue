@@ -1,21 +1,28 @@
 <script setup lang="ts">
-import { computed, h, ref, watch } from 'vue'
-import { NAlert, NDataTable, NEmpty, NInput, NSelect, NSpin, NTag } from 'naive-ui'
-import type { DataTableColumns } from 'naive-ui'
-import PlayerCell from '@/components/PlayerCell.vue'
+import { computed, ref } from 'vue'
+import { NAlert, NAvatar, NInput, NSelect, NSpin, NTag } from 'naive-ui'
+import { RouterLink } from 'vue-router'
 import RankBadge from '@/components/RankBadge.vue'
 import { useApi } from '@/composables/useApi'
-import { useAppStore } from '@/stores/app'
+import { MODES } from '@/types/common'
+import type { Mode } from '@/types/common'
+import { avatarUrl } from '@/utils/avatar'
 import { formatDaysAgo, formatNumber } from '@/utils/format'
 import { fetchLeaderboard } from './api'
 import type { ActivityFilter, LeaderboardEntry, SortKey } from './types'
 
-const app = useAppStore()
-const { data, loading, error, reload } = useApi(() => fetchLeaderboard(app.currentMode))
-watch(
-  () => app.currentMode,
-  () => void reload(),
-)
+/** 每列展示的名次数（后端每模式返回约 200 名，可按搜索过滤）。 */
+const TOP_N = 50
+
+// 三模式一次拉取，同页并排展示，互不切换。
+const { data, loading, error } = useApi(async () => {
+  const [kzt, skz, vnl] = await Promise.all([
+    fetchLeaderboard('KZT'),
+    fetchLeaderboard('SKZ'),
+    fetchLeaderboard('VNL'),
+  ])
+  return { KZT: kzt, SKZ: skz, VNL: vnl } as Record<Mode, LeaderboardEntry[]>
+})
 
 const query = ref('')
 const activity = ref<ActivityFilter>('all')
@@ -35,125 +42,226 @@ const sortOptions: { label: string; value: SortKey }[] = [
   { label: '按记录数排序', value: 'records' },
 ]
 
-// 活跃度筛选只对"本地已同步到成绩"的玩家有意义；未同步（null）一律不参与活跃度命中
-const rows = computed<LeaderboardEntry[]>(() => {
-  const all = data.value ?? []
+/** 单模式过滤 + 排序后取前 N。活跃度对未同步（null）玩家不命中。 */
+function filterRows(mode: Mode): LeaderboardEntry[] {
+  const all = data.value?.[mode] ?? []
   const q = query.value.trim().toLowerCase()
-  const filtered = all.filter((e) => {
-    if (q && !e.player.toLowerCase().includes(q) && !e.steam_id64.includes(q)) return false
-    const days = e.last_played_days_ago
-    if (activity.value === '7' && (days === null || days > 7)) return false
-    if (activity.value === '30' && (days === null || days > 30)) return false
-    if (activity.value === 'inactive' && (days === null || days <= 30)) return false
-    return true
-  })
-  return [...filtered].sort((a, b) => b[sortKey.value] - a[sortKey.value])
-})
+  return all
+    .filter((e) => {
+      if (q && !e.player.toLowerCase().includes(q) && !e.steam_id64.includes(q)) return false
+      const days = e.last_played_days_ago
+      if (activity.value === '7' && (days === null || days > 7)) return false
+      if (activity.value === '30' && (days === null || days > 30)) return false
+      if (activity.value === 'inactive' && (days === null || days <= 30)) return false
+      return true
+    })
+    .sort((a, b) => b[sortKey.value] - a[sortKey.value])
+    .slice(0, TOP_N)
+}
 
-const countText = computed(() => {
-  const total = data.value?.length ?? 0
-  return rows.value.length === total
-    ? `共 ${total} 人`
-    : `筛出 ${rows.value.length} 人 / 共 ${total} 人`
-})
-
-const columns: DataTableColumns<LeaderboardEntry> = [
-  {
-    title: '排名',
-    key: 'rank',
-    width: 80,
-    render: (row) => h(RankBadge, { rank: row.rank }),
-  },
-  {
-    title: '玩家',
-    key: 'player',
-    render: (row) =>
-      h(PlayerCell, {
-        player: row.player,
-        steamId64: row.steam_id64,
-        avatar: row.avatar,
-      }),
-  },
-  { title: '完成地图', key: 'maps_completed', width: 100 },
-  {
-    title: '总分数',
-    key: 'total_points',
-    width: 110,
-    render: (row) => h('span', { class: 'mono points-strong' }, formatNumber(row.total_points)),
-  },
-  { title: '平均分', key: 'avg_points', width: 90, render: (row) => h('span', { class: 'mono' }, row.avg_points) },
-  { title: '记录数', key: 'records', width: 90 },
-  {
-    title: '最近游玩',
-    key: 'last_played',
-    width: 120,
-    render: (row) =>
-      h('div', { class: 'lb-last' }, [
-        h('div', { class: 'lb-active' }, formatDaysAgo(row.last_played_days_ago)),
-        h('div', { class: 'lb-date' }, row.last_played ?? '未同步'),
-      ]),
-  },
-]
+// 三列一次性算好，避免模板里重复计算
+const columns = computed(() =>
+  MODES.map((mode) => ({
+    mode,
+    rows: filterRows(mode),
+    total: data.value?.[mode]?.length ?? 0,
+  })),
+)
 </script>
 
 <template>
   <div class="page-head page-head-row">
     <div>
       <h1 class="page-title">玩家排行榜</h1>
-      <p class="page-sub">当前模式：{{ app.currentMode }} · 点击导航栏模式按钮切换</p>
-    </div>
-    <div class="page-head-actions">
-      <NTag type="success" size="medium">{{ countText }}</NTag>
+      <p class="page-sub">KZT / SKZ / VNL 三模式独立计分，同页并排展示</p>
     </div>
   </div>
 
   <div class="toolbar">
-    <NInput v-model:value="query" placeholder="搜索玩家名称 / SteamID64..." clearable style="max-width: 300px" />
+    <NInput v-model:value="query" placeholder="搜索玩家名称 / SteamID64..." clearable style="max-width: 320px" />
     <NSelect v-model:value="activity" :options="activityOptions" style="width: 180px" />
     <NSelect v-model:value="sortKey" :options="sortOptions" style="width: 180px" />
   </div>
 
-  <div class="panel">
-    <div class="panel-head">
-      <div>
-        <div class="panel-title">{{ app.currentMode }} · 全球玩家排名</div>
-        <div class="panel-sub">按总分排序 · 名次由本站汇总分计算</div>
-      </div>
-      <div class="panel-head-extra">
-        <NTag v-if="loading" size="small">同步中…</NTag>
+  <NSpin :show="loading">
+    <NAlert v-if="error" type="error" style="margin-bottom: 12px">{{ error }}</NAlert>
+
+    <div class="lb-columns">
+      <div v-for="col in columns" :key="col.mode" class="panel lb-panel">
+        <div class="panel-head">
+          <div class="lb-head">
+            <span class="mode-dot" />
+            <span class="panel-title">{{ col.mode }}</span>
+          </div>
+          <div class="panel-head-extra">
+            <NTag type="success" size="small">共 {{ col.total }} 人</NTag>
+          </div>
+        </div>
+
+        <div class="lb-list">
+          <div v-for="e in col.rows" :key="e.steam_id64" class="lb-row">
+            <RankBadge :rank="e.rank" />
+            <NAvatar :src="avatarUrl(e.steam_id64)" :size="28" round class="lb-avatar" />
+            <div class="lb-main">
+              <div class="lb-line">
+                <RouterLink
+                  class="lb-name"
+                  :to="`/profile/${e.steam_id64}`"
+                  :title="e.player"
+                >
+                  {{ e.player }}
+                </RouterLink>
+                <span class="lb-points mono">{{ formatNumber(e.total_points) }}</span>
+              </div>
+              <div class="lb-line lb-steam mono">{{ e.steam_id64 }}</div>
+              <div class="lb-line lb-meta">
+                <span>{{ e.maps_completed }} 图</span>
+                <span class="sep">·</span>
+                <span>{{ e.records }} 条</span>
+                <span class="sep">·</span>
+                <span>均 {{ e.avg_points }}</span>
+                <span class="sep">·</span>
+                <span>{{ formatDaysAgo(e.last_played_days_ago) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="!col.rows.length" class="lb-empty">
+            {{ query ? '没有匹配的玩家' : (loading ? '同步中…' : '暂无榜单数据') }}
+          </div>
+        </div>
+
+        <div v-if="col.rows.length" class="lb-foot">
+          展示前 {{ col.rows.length }} 名{{ query || activity !== 'all' ? '（已筛选）' : '' }}
+        </div>
       </div>
     </div>
-
-    <NSpin :show="loading">
-      <NAlert v-if="error" type="error" style="margin: 16px 20px 0">{{ error }}</NAlert>
-      <NEmpty
-        v-else-if="!loading && (data?.length ?? 0) === 0"
-        description="榜单正在从上游同步，稍后刷新即可"
-        style="padding: 48px 0"
-      />
-      <NDataTable
-        v-else
-        :columns="columns"
-        :data="rows"
-        :pagination="{ pageSize: 20 }"
-        :scroll-x="860"
-      />
-    </NSpin>
-  </div>
+  </NSpin>
 </template>
 
 <style scoped>
-:deep(.points-strong) {
+.lb-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.lb-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mode-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(47, 111, 79, 0.14);
+}
+
+.lb-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.lb-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+}
+
+.lb-row + .lb-row {
+  border-top: 1px solid var(--border-color);
+}
+
+.lb-row:hover {
+  background-color: #f6f9f7;
+}
+
+.lb-avatar {
+  flex-shrink: 0;
+  background-color: var(--bg-subtle);
+}
+
+.lb-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.lb-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.lb-line + .lb-line {
+  margin-top: 2px;
+}
+
+.lb-name {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lb-name:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.lb-points {
+  flex-shrink: 0;
+  font-size: 13px;
   font-weight: 700;
   color: var(--accent);
 }
 
-:deep(.lb-active) {
-  font-weight: 600;
+.lb-meta {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
-:deep(.lb-date) {
+.lb-steam {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.lb-meta .sep {
+  color: var(--border-strong);
+}
+
+.lb-empty {
+  padding: 36px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.lb-foot {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-color);
   font-size: 12px;
   color: var(--text-muted);
+  background-color: #fbfcfb;
+}
+
+@media (max-width: 1080px) {
+  .lb-columns {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

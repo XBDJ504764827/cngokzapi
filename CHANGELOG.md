@@ -10,6 +10,22 @@
 
 ---
 
+## 2026-10-18 移除导航模式切换 + 排行榜三模式同页并排
+
+- 背景：用户要求删除导航栏的模式切换功能（以后不用它切模式）；原排行榜只显示单个模式，
+  需改为同时展示 KZT/SKZ/VNL 三模式排行，且不遮挡数据。
+- 变更内容：
+  - 导航栏移除 KZT/SKZ/VNL 切换按钮及 `.mode-switch/.mode-dot` 样式；`stores/app.ts` 简化为
+    固定 `currentMode='KZT'`（仅供地图页沿用），删除 `setMode`/`cycleMode`。
+  - 排行榜重做：一次并行拉取三模式榜单，**三列并排**（KZT / SKZ / VNL），每列前 50 名；
+    行内两行式展示名次徽章、头像、玩家名（链接资料页）、总分、完成地图/记录数/平均分/最近游玩，
+    全部字段可见不截断；搜索 / 活跃度 / 排序同时作用于三列；≤1080px 自动堆叠为单列。
+- 涉及文件：`frontend/src/layouts/DefaultLayout.vue`、`frontend/src/stores/app.ts`、
+  `frontend/src/features/leaderboard/LeaderboardPage.vue`、`PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无（复用 `GET /api/v1/leaderboard?mode=` 三次请求）。
+- 测试与结果（2026-10-18）：`npm run build`（含 `vue-tsc -b`）通过；
+  Playwright 1440 截图核对三列排行完整展示，导航栏已无模式切换按钮。
+
 ## 2026-10-18 KZTimer 实时成绩 + 双来源服务器（插件优先 + Steam Web API）
 
 - 背景：用户要求（1）最新记录改从 KZTimer 官方接口实时获取，不依赖 gokz.top；

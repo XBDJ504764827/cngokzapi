@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { useAppStore } from '@/stores/app'
 
-const app = useAppStore()
 const router = useRouter()
 const route = useRoute()
 
@@ -43,10 +41,6 @@ function goLogin(): void {
         </RouterLink>
       </nav>
       <div class="nav-actions">
-        <button class="mode-switch" :title="`当前${app.currentMode}，点击切换`" @click="app.cycleMode()">
-          <span class="mode-dot" />
-          {{ app.currentMode }}
-        </button>
         <button class="btn-steam" @click="goLogin()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path
@@ -190,38 +184,6 @@ function goLogin(): void {
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
-}
-
-.mode-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 76px;
-  padding: 7px 12px;
-  background-color: var(--bg-card);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: var(--accent);
-  cursor: pointer;
-  transition:
-    border-color 0.15s ease,
-    background-color 0.15s ease;
-}
-
-.mode-switch:hover {
-  border-color: var(--accent);
-  background-color: var(--accent-soft);
-}
-
-.mode-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(47, 111, 79, 0.14);
 }
 
 .btn-steam {

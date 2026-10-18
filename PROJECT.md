@@ -26,10 +26,10 @@
 
 1. 首页：社区统计（4 个统计卡，真实数据）、「关于 CNGOKZ」介绍卡、「最新公告」列表
    （位置＝介绍卡之后；当前为静态内容，见 `frontend/src/features/home/announcements.ts`）。
-2. 排行榜：全球玩家排名（KZT / SKZ / VNL 各 120 人，独立计分排序），
-   每行含头像（模拟图，后续换 Steam 真实头像）、名称、SteamID64、完成地图、
-   总分、平均分、记录数、最近游玩时间；支持名称模糊 / SteamID64 子串搜索、
-   活跃度筛选（近 7 / 30 天、超 30 天未玩）、多字段排序，计数以标题右侧徽章展示。
+2. 排行榜：**KZT / SKZ / VNL 三模式同页并排**（各约 200 人，独立计分；每列展示前 50 名），
+   每行含名次徽章、头像、名称（链接到资料页）、总分、完成地图、记录数、平均分、最近游玩；
+   支持名称模糊 / SteamID64 子串搜索、活跃度筛选（近 7 / 30 天、超 30 天未玩）、多字段排序，
+   筛选与排序同时作用于三列；**导航栏不再提供模式切换**。
    条目字段后续接真实数据时保持兼容（后端 `modules/leaderboard/repository.rs` 同口径）。
 3. 地图列表：浏览全部地图，支持难度（按当前模式 Tier）筛选与名称搜索；
    **卡片网格排列**（仿 gokz.top，宽屏默认 4 列，窄屏降为 3 / 2 / 1 列）：地图图片、
@@ -49,7 +49,7 @@
 8. 封禁名单（新增）：封禁玩家公示，每行含头像、名称、SteamID64、封禁理由、
    封禁时间、封禁服务器、详细数据（地图·模式·异常成绩·Demo 编号）；支持名称模糊 /
    SteamID64 子串搜索，每页 20 人翻页；当前 45 条模拟占位，真实管理数据接入时字段保持兼容。
-9. 最新记录：KZT / SKZ / VNL 三列并排，各列最新 20 条（不跟随模式开关）；
+9. 最新记录：KZT / SKZ / VNL 三列并排，各列最新 20 条（不依赖模式切换）；
    每条含**地图缩略图 + 地图名（点击进地图详情）、玩家头像 + 玩家名（点击进资料页）、
    获取分数、完成耗时、记录上传时间**；一列内完整展示，**不做横向滚动**；
    超长玩家名/地图名省略号 + hover 全称。
@@ -156,7 +156,7 @@ frontend/src/
 ├── components/   # 跨模块公共组件（有第二个使用者时再下沉，勿提前抽象）
 ├── features/<domain>/  # 业务模块：页面 + api.ts + types.ts
 ├── services/http.ts     # 全站唯一 fetch 出口（错误体归一为 ApiError）
-├── stores/       # Pinia（app.currentMode 为全站模式总开关）
+├── stores/       # Pinia（app.currentMode 固定 KZT，供地图页使用；全站不再提供模式切换）
 ├── composables/  # useApi（{ data, loading, error, reload } 范式）
 ├── types/        # 公共类型（JSON 一律 snake_case，与后端 models 一一对应）
 └── utils/        # 纯展示函数
@@ -177,7 +177,7 @@ cngokzapi/
 │   │   ├── components/   # 跨模块公共组件（PlayerCell、RankBadge）
 │   │   ├── features/     # home/leaderboard/records/servers/maps/profile/bans/auth
 │   │   ├── services/     # http.ts 全站唯一 fetch 出口
-│   │   ├── stores/       # Pinia（app.currentMode）
+│   │   ├── stores/       # Pinia（app.currentMode，固定 KZT）
 │   │   ├── composables/  # useApi
 │   │   ├── types/        # 公共类型（snake_case）
 │   │   └── utils/        # 纯展示函数
@@ -564,6 +564,10 @@ POST /api/v2.0/records                 X-ApiKey: <key>
   并以 `(ip, port)` 合并、插件优先、只显示 KZ 服；`0005_server_sources.sql` 已应用。
   实测 Steam 侧 529 台 KZ 服、插件上报端点 200/401 与优先覆盖均正确；地图元信息/排行榜/封禁仍在
   gokz.top 落库缓存（§9.2），后续可继续迁移到 KZTimer/本地计分。
+- 当前：移除导航模式切换 + 三模式排行榜（2026-10-18，`develop`）：导航栏删除 KZT/SKZ/VNL
+  切换按钮，`stores/app.ts` 简化为固定 `currentMode='KZT'`（仅地图页使用）；排行榜改为一次拉取
+  三模式、**KZT / SKZ / VNL 三列同页并排**（每列前 50 名），行内两行式展示名次/头像/玩家/总分/
+  图数/记录数/均分/最近游玩，搜索与筛选排序同时作用于三列；`npm run build` 通过，1440 截图核对。
 - 下一步（按序）：
   1. ~~旧阶段（vanilla 原型 + 单文件后端）~~ ✅ 已归档/替换
   2. ~~数据接入落地（§9）：`sources/` + `sync_jobs` + `scoring` + `0002/0003` + `ingest`；
