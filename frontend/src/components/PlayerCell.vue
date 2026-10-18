@@ -55,12 +55,14 @@ const initial = computed(() => (props.player ? props.player.trim().charAt(0) : '
 }
 
 .player-name a {
-  color: inherit;
+  color: var(--accent);
   text-decoration: none;
 }
 
 .player-name a:hover {
-  color: var(--accent);
+  color: var(--accent-hover);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .player-steam {

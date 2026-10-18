@@ -109,16 +109,18 @@ const hasData = computed(() => (data.value ?? []).length > 0)
 }
 
 :deep(.player-link) {
-  color: var(--text-primary);
+  color: var(--accent);
   text-decoration: none;
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 :deep(.player-link:hover) {
-  color: var(--accent);
+  color: var(--accent-hover);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 :deep(.time-value) {

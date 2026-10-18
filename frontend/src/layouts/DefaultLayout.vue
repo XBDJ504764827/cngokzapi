@@ -174,9 +174,15 @@ function goLogin(): void {
 }
 
 .nav-link.active {
-  background-color: var(--accent-soft);
-  color: var(--accent);
+  background-color: var(--accent);
+  color: #fff;
   font-weight: 600;
+  box-shadow: 0 2px 8px rgba(47, 111, 79, 0.24);
+}
+
+.nav-link.active:hover {
+  background-color: var(--accent-hover);
+  color: #fff;
 }
 
 .nav-actions {

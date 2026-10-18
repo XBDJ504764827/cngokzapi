@@ -10,6 +10,33 @@
 
 ---
 
+## 2026-10-18 服务器「加入游戏」按钮 + 全站视觉强化
+
+- 背景：用户反馈服务器只有「复制 IP」一个按钮，要求增加拉起 Steam 加入游戏的按钮
+  （CS 游戏 AppID 更新为 4465480）；同时反馈网站太素、按钮与玩家名一样不明显，要求优化样式。
+- 变更内容：
+  - 服务器：卡片/列状视图都新增「加入游戏」主按钮，点击 `window.location.href` 到
+    `steam://rungameid/4465480//+connect ip:port`（地址仅在点击时拼接，不写入 DOM，沿用 PROJECT §2）；
+    AppID 抽成 `CS_APP_ID` 常量便于后续更换；「复制 IP」保留为次按钮。
+  - 视觉强化（设计系统升级，PROJECT §2「视觉系统」已同步）：
+    - 按钮：Naive Button 覆写强描边/深色字/hover 墨绿字，CSS 常驻微阴影 + hover 浮起；
+      主按钮（primary）墨绿填充 + 绿色投影，主/次操作区分明确。
+    - 导航当前项改为墨绿实心白字 + 投影。
+    - 表格表头改浅绿底 + 墨绿加粗字（theme `DataTable` + 全局 CSS）。
+    - 面板/卡片常驻微阴影（`--shadow-card`），`panel-head` 与 NCard 头部加浅绿渐变；
+      页面顶部加极浅墨绿晕染。
+    - 玩家名（`PlayerCell` / 记录页）改墨绿链接，hover 下划线。
+    - 首页 Hero/统计卡、输入框（更强描边 + 聚焦墨绿环）同步。
+- 涉及文件：修改 `frontend/src/app/theme.ts`、`frontend/src/styles/global.css`、
+  `frontend/src/layouts/DefaultLayout.vue`、`frontend/src/components/PlayerCell.vue`、
+  `frontend/src/features/servers/ServersPage.vue`、`frontend/src/features/records/RecordsPage.vue`、
+  `PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无（纯前端）。
+- 测试与结果（2026-10-18）：
+  - `npm run build`（含 `vue-tsc -b`）通过；产物内可见 `steam://rungameid/...` 链接。
+  - Playwright 截图核对 1440：服务器默认卡片含「加入游戏 / 复制 IP」、导航实心选中、
+    表头浅绿、玩家名墨绿、卡片阴影与渐变均生效；首页/榜单/地图/记录/封禁/档案同步。
+
 ## 2026-10-18 服务器列表默认卡片排列 + 按社区分类
 
 - 背景：用户要求服务器列表默认卡片样式，并增加按社区名称分类（CNGOKZ / AXE / HIME 等）。

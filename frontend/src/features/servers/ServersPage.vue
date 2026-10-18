@@ -55,6 +55,14 @@ async function copyAddress(ip: string, port: number): Promise<void> {
   }
 }
 
+// CS 客户端 AppID（用户指定 2026-10 更新为 4465480）。
+const CS_APP_ID = '4465480'
+
+/** 拉起 Steam 客户端并连接服务器；地址仅在点击时拼接，不写入 DOM（PROJECT §2）。 */
+function joinServer(ip: string, port: number): void {
+  window.location.href = `steam://rungameid/${CS_APP_ID}//+connect%20${ip}:${port}`
+}
+
 /** 地图图加载失败时隐藏，露出底色占位。 */
 function onImageError(e: Event): void {
   const img = e.target as HTMLImageElement
@@ -168,6 +176,7 @@ function region(server: ServerEntry): string {
             </div>
           </div>
           <div class="server-actions">
+            <NButton size="small" type="primary" @click="joinServer(s.ip, s.port)">加入游戏</NButton>
             <NButton size="small" @click="copyAddress(s.ip, s.port)">复制 IP</NButton>
           </div>
         </div>
@@ -212,7 +221,10 @@ function region(server: ServerEntry): string {
         </div>
         <div class="server-list-actions">
           <span class="server-count mono">{{ s.player_count }}/{{ s.max_players }}</span>
-          <NButton size="small" @click="copyAddress(s.ip, s.port)">复制 IP</NButton>
+          <div class="list-buttons">
+            <NButton size="small" type="primary" @click="joinServer(s.ip, s.port)">加入游戏</NButton>
+            <NButton size="small" @click="copyAddress(s.ip, s.port)">复制 IP</NButton>
+          </div>
         </div>
       </div>
     </div>
@@ -605,6 +617,11 @@ function region(server: ServerEntry): string {
   flex-shrink: 0;
 }
 
+.list-buttons {
+  display: flex;
+  gap: 8px;
+}
+
 @media (max-width: 600px) {
   .server-card-list {
     flex-direction: column;
@@ -620,6 +637,11 @@ function region(server: ServerEntry): string {
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
+  }
+
+  .list-buttons {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 </style>

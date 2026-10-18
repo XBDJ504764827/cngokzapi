@@ -32,9 +32,14 @@
   --radius-md: 10px;
   --radius-lg: 16px;
   --radius-card: 14px;
+  --shadow-xs: 0 1px 2px rgba(28, 28, 26, 0.06);
   --shadow-sm: 0 1px 2px rgba(28, 28, 26, 0.04);
   --shadow-md: 0 4px 16px rgba(28, 28, 26, 0.06);
   --shadow-lg: 0 8px 28px rgba(28, 28, 26, 0.08);
+  /* 卡片常驻微阴影（不再只有 hover 才有“浮起”感） */
+  --shadow-card: 0 1px 3px rgba(28, 28, 26, 0.06), 0 1px 2px rgba(28, 28, 26, 0.04);
+  --accent-100: #d6e8dd;
+  --tint-green: #edf3ef;
   /* 三档难度色（原型 tokens） */
   --tier-easy: #4c8f6b;
   --tier-mid: #b8862f;
@@ -45,6 +50,9 @@
 body {
   font-family: var(--font-base);
   background-color: var(--bg-page);
+  /* 顶部极浅墨绿晕染：避免整页纯白“太素” */
+  background-image: radial-gradient(1000px 420px at 50% -200px, rgba(47, 111, 79, 0.1), transparent 70%);
+  background-repeat: no-repeat;
   color: var(--text-primary);
   line-height: 1.6;
   min-height: 100vh;
@@ -189,7 +197,7 @@ body {
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
 }
 
@@ -204,6 +212,7 @@ body {
   gap: 12px;
   padding: 15px 20px;
   border-bottom: 1px solid var(--border-color);
+  background-image: linear-gradient(180deg, #f4f8f5, #ffffff);
 }
 
 .panel-title {
@@ -284,19 +293,52 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* ========== 表格：表头浅底 + 行 hover（统一全站观感） ========== */
-.n-data-table .n-data-table-th {
-  background-color: #f7f6f3;
-  font-weight: 600;
+/* ========== 表格：表头浅绿底 + 行 hover（统一全站观感） ========== */
+.n-data-table.n-data-table .n-data-table-th {
+  background-color: var(--tint-green);
+  font-weight: 700;
 }
 
-.n-data-table .n-data-table-th__title {
-  color: var(--text-secondary);
+.n-data-table.n-data-table .n-data-table-th__title {
+  color: #3f5b4b;
   font-size: 13px;
+  font-weight: 700;
 }
 
-.n-data-table .n-data-table-tr:hover .n-data-table-td {
-  background-color: #f8f7f4;
+.n-data-table.n-data-table .n-data-table-tr:hover .n-data-table-td {
+  background-color: #f3f7f4;
+}
+
+/* ========== 按钮：明确的“可点击”质感（Naive 组件用双/三倍类名提高优先级） ========== */
+.n-button.n-button {
+  transition:
+    transform 0.14s ease,
+    box-shadow 0.14s ease,
+    background-color 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease;
+}
+
+.n-button.n-button:not(.n-button--disabled):not(.n-button--text-type):not(.n-button--quaternary-type) {
+  box-shadow: var(--shadow-xs);
+}
+
+.n-button.n-button:not(.n-button--disabled):not(.n-button--text-type):not(.n-button--quaternary-type):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(28, 28, 26, 0.1);
+}
+
+.n-button.n-button.n-button--primary-type:not(.n-button--disabled) {
+  box-shadow: 0 2px 8px rgba(47, 111, 79, 0.28);
+}
+
+.n-button.n-button.n-button--primary-type:not(.n-button--disabled):hover {
+  box-shadow: 0 6px 18px rgba(47, 111, 79, 0.34);
+}
+
+/* ========== 卡片头部：与面板一致的浅绿渐变，增加层次 ========== */
+.n-card.n-card > .n-card-header {
+  background-image: linear-gradient(180deg, #f4f8f5, #ffffff);
 }
 
 /* ========== 路由切换的轻微淡入（克制，不做位移动画） ========== */
