@@ -10,6 +10,43 @@
 
 ---
 
+## 2026-10-18 KZTimer 实时成绩 + 双来源服务器（插件优先 + Steam Web API）
+
+- 背景：用户要求（1）最新记录改从 KZTimer 官方接口实时获取，不依赖 gokz.top；
+  （2）服务器列表两种来源——装了本站插件的服务器上报实时信息、或 Steam 公开 API 获取，
+  两者命中同一服务器时插件优先；（3）网站只显示 KZ 模式的 CS 服；
+  （4）必要数据（如地图信息）可先从 gokz.top 拉入数据库缓存，定时刷新，但不能完全依赖 gokz.top。
+- 变更内容：
+  - 新增 `sources/kztimer.rs`：KZTimer Global API 客户端（`/records/top/recent`、`/records/top`），
+    含模式映射（`kz_timer`/`kz_simple`/`kz_vanilla`）与无时区 UTC 时间解析。
+  - `run_recent` 改走 KZTimer 广播式最新成绩（本地按模式筛选），`source='kztimer'`，
+    轮询加密到 **60s**（近实时）；`external_id = kztimer:{id}`。
+  - 新增 `sources/steam.rs`：Steam Web API `IGameServersService/GetServerList`（需 `STEAM_API_KEY`），
+    按 `appid 730/4465480` × `gametype ∈ {gokz,cs2kz,kz}` 多次查询并按 `ip:port` 去重。
+  - 服务器改为双来源：`run_servers` 走 Steam（每 5 分钟，先置离线再写回在线）；
+    新增插件上报 `POST /api/v1/ingest/servers`（`X-ApiKey`，复用 `server_keys` 鉴权）；
+    两源以 `(ip, port)` 合并，插件（10 分钟内）优先不被 Steam 覆盖。
+  - 迁移 `0005_server_sources.sql`：`servers` 增 `source/appid/game_mode/steam_id/reported_at`，
+    新增唯一索引 `(ip, port)`；`GET /api/v1/servers` 只返回在线 KZ CS 服并附带 `source`。
+  - 运维：`ingest-key delete-server <ip> <port>`。
+  - 前端：服务器卡片/列状显示数据来源（插件 / Steam）标签。
+  - `config.rs` 增 `STEAM_API_KEY`（`.env` 已填，`.env.example` 留占位）。
+- 涉及文件：新增 `backend/src/sources/{kztimer,steam}.rs`、`backend/migrations/0005_server_sources.sql`；
+  修改 `backend/src/{config.rs,app.rs}`、`backend/src/sources/mod.rs`、
+  `backend/src/modules/sync/{jobs,worker,repository}.rs`、
+  `backend/src/modules/ingest/{dto,service,handlers,routes}.rs`、
+  `backend/src/modules/servers/{models,repository}.rs`、`backend/src/bin/ingest-key.rs`、
+  `frontend/src/features/servers/{types.ts,ServersPage.vue}`、`PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：迁移 `0005` 已应用；`GET /api/v1/servers` 增 `source`；
+  新增 `POST /api/v1/ingest/servers`。
+- 测试与结果（2026-10-18）：
+  - `cargo fmt`、`cargo clippy --all-targets -- -D warnings`、`cargo test`（**28 passed**，含 KZTimer 映射/URL 单测）、
+    `npm run build`（含 `vue-tsc -b`）全过。
+  - 实测：Steam 同步 **529 台 KZ 服**（含实时人数/地图）；`/api/v1/records` 最新条目为 KZTimer 源且滞后 < 1 分钟；
+    插件上报无 key=401、合法=200，且 `127.0.0.1:27015` 以 `source=plugin` 带玩家名单显示（已用 `delete-server` 清理）。
+  - 遗留（已在 §9.2 说明）：KZTimer `player_ranks` 的 KZT 恒 500，故地图元信息/排行榜/封禁仍
+    以 gokz.top **落库缓存**（启动全量 + 定时刷新，不阻塞展示）；后续可迁到 KZTimer 或本站自建计分。
+
 ## 2026-10-18 最新记录展示地图图片/地图名/头像/分数/耗时/上传时间，地图可点进详情
 
 - 背景：用户反馈最新记录仍不能完整展示，需同时显示地图名称、地图图片、玩家头像、

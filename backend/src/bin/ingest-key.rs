@@ -36,6 +36,7 @@ async fn main() {
         "list" => list(&pool).await,
         "revoke" => revoke(&pool, &args[1..]).await,
         "delete-record" => delete_record(&pool, &args[1..]).await,
+        "delete-server" => delete_server(&pool, &args[1..]).await,
         "jobs" => list_jobs(&pool).await,
         "requeue" => requeue(&pool, &args[1..]).await,
         other => {
@@ -58,6 +59,7 @@ fn usage() {
          ingest-key list\n  \
          ingest-key revoke <api_key>\n  \
          ingest-key delete-record <record_uuid>\n  \
+         ingest-key delete-server <ip> <port>\n  \
          ingest-key jobs\n  \
          ingest-key requeue <kind> <key>"
     );
@@ -185,6 +187,26 @@ async fn delete_record(pool: &PgPool, args: &[String]) -> Result<(), sqlx::Error
         .await?
         .rows_affected();
     println!("已删除 {n} 条记录（record_uuid={uuid}）");
+    Ok(())
+}
+
+/// 删除某个服务器（按 ip/port；用于清理插件误报）。
+async fn delete_server(pool: &PgPool, args: &[String]) -> Result<(), sqlx::Error> {
+    let (Some(ip), Some(port)) = (args.first(), args.get(1)) else {
+        eprintln!("用法：ingest-key delete-server <ip> <port>");
+        std::process::exit(2);
+    };
+    let port: i32 = port.parse().unwrap_or_else(|_| {
+        eprintln!("port 非法");
+        std::process::exit(2);
+    });
+    let n = sqlx::query("DELETE FROM servers WHERE ip = $1 AND port = $2")
+        .bind(ip)
+        .bind(port)
+        .execute(pool)
+        .await?
+        .rows_affected();
+    println!("已删除 {n} 个服务器（{ip}:{port}）");
     Ok(())
 }
 

@@ -7,7 +7,7 @@ use axum::{
 };
 
 use super::{
-    dto::{CompatRecord, IngestItem},
+    dto::{CompatRecord, IngestItem, IngestServer},
     models::{CompatResponse, IngestResponse},
     service,
 };
@@ -46,6 +46,24 @@ pub async fn ingest(
         "上报接收"
     );
     Ok(Json(IngestResponse { results }))
+}
+
+/// POST /api/v1/ingest/servers —— 自建插件上报服务器实时信息（人数/地图/玩家）。
+pub async fn ingest_server(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(report): Json<IngestServer>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let auth = service::authenticate(&state, api_key(&headers)).await?;
+    service::ingest_server(&state, &auth, &report).await?;
+    tracing::info!(
+        group = %auth.group_name,
+        ip = %report.ip,
+        port = report.port,
+        players = report.player_count.unwrap_or_default(),
+        "服务器信息上报"
+    );
+    Ok(Json(serde_json::json!({ "status": "ok" })))
 }
 
 /// POST /api/v2.0/records —— GlobalAPI 兼容层（字段与官方客户端一致）。

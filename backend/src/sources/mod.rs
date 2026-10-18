@@ -7,6 +7,8 @@
 
 pub mod gokz_top;
 pub mod kzgo;
+pub mod kztimer;
+pub mod steam;
 
 use std::time::Duration;
 

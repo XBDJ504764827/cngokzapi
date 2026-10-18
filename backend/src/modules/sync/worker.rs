@@ -16,9 +16,9 @@ const MAX_INFLIGHT: usize = 3;
 /// 轮询间隔。
 const TICK: Duration = Duration::from_secs(5);
 
-/// 定时任务周期（秒）。
-const RECENT_EVERY: u64 = 300;
-const SERVERS_EVERY: u64 = 600;
+/// 定时任务周期（秒）。最新记录来自 KZTimer 广播源，60s 拉一次以保证接近实时。
+const RECENT_EVERY: u64 = 60;
+const SERVERS_EVERY: u64 = 300;
 const BANS_EVERY: u64 = 3600;
 const LEADERBOARD_EVERY: u64 = 86_400;
 const MAPS_EVERY: u64 = 86_400;
@@ -140,7 +140,7 @@ async fn execute(state: &AppState, kind: &str, key: &str) -> Result<usize, jobs:
         super::KIND_MAPS => jobs::run_maps(pool, src).await,
         super::KIND_LEADERBOARD => jobs::run_leaderboard(pool, src, key, 200).await,
         super::KIND_RECENT => jobs::run_recent(pool, src, key).await,
-        super::KIND_SERVERS => jobs::run_servers(pool, src).await,
+        super::KIND_SERVERS => jobs::run_servers(pool, src, &state.config.steam_api_key).await,
         super::KIND_BANS => jobs::run_bans(pool, src, 500).await,
         super::KIND_MAP => match key.split_once('|') {
             Some((map_name, mode)) => jobs::run_map(pool, src, map_name, mode).await,

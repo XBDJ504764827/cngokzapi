@@ -258,8 +258,10 @@ JSON 一律 snake_case，与前后端类型一一对应。
   - 地图：`GET /api/v1/maps?query=&tier=&mode=`（返回含 `mappers` / 三模式 tier / `bonuses` /
     当前模式 WR `wr_player`·`wr_time`·`wr_date`）、
     `GET /api/v1/maps/{id}?mode=KZT`（详情含主关前 100 与 `syncing` 标记）
-  - 服务器：`GET /api/v1/servers`（仅在线公开，含 `map_tier` / `player_names` / `category`；
+  - 服务器：`GET /api/v1/servers`（仅在线 KZ CS 服；含 `map_tier` / `player_names` / `category` / `source`；
     ip/port 仅供复制按钮，页面不渲染明文）
+  - 服务器上报（§9.11）：`POST /api/v1/ingest/servers`（X-ApiKey，插件上报实时人数/地图/玩家，
+    与 Steam 发现以 `(ip, port)` 合并，插件优先）
   - 玩家：`GET /api/v1/players/{steam_id64}`（个人资料，首次访问触发后台同步）
   - 记录：`GET /api/v1/records`（含 `steam_id64` / `map_id`，供头像、资料页与地图详情跳转；
     含 `created_at` 上传时间）
@@ -332,11 +334,19 @@ JSON 一律 snake_case，与前后端类型一一对应。
 
 ### 9.2 数据源与优先级（全部为匿名可读公开接口）
 
-| 优先级 | 数据源 | 用途 | 备注 |
-|---|---|---|---|
-| 主 | `https://api.gokz.top/v1/*` | 玩家档案/榜单/记录/地图（含 KZT/SKZ/VNL 三模式 tier）/bans/servers/jumpstats | `/v1/admin/*` 一律不碰 |
-| 辅 | `https://kztimerglobal.com/api/v2.0/*` | 交叉校验、兜底、外部成绩兜底增量 | 字段口径与官方一致 |
-| 兜底 | `https://kzgo.eu/api/*` | **地图制作人显示名**（`/api/maps` 的 `mapperNames`，已用于地图卡片） | 公开只读；注意其字段可能含 null |
+| 用途 | 主数据源 | 说明 |
+|---|---|---|
+| 最新成绩（实时） | KZTimer `/records/top/recent` | 官方公开广播式接口，60s 轮询增量，`source='kztimer'` |
+| 地图 / 个人成绩（按需） | gokz.top（缓存）+ KZTimer | 地图详情、个人记录，优先本地缓存 |
+| 地图元信息（tier/bonus/作者） | gokz.top（启动全量 + 每日刷新，落库缓存） | KZTimer `/maps` 只有单一 `difficulty`，无 bonus/作者 |
+| 排行榜聚合 | gokz.top（每日刷新，落库缓存） | KZTimer `player_ranks` 的 KZT 恒 500，不可用 |
+| 封禁 | gokz.top（每小时刷新，落库缓存） | KZTimer `/bans` 亦可用 |
+| 服务器（实时） | ① 本站插件上报（优先）② Steam Web API | 见 §9.11；只展示 KZ 模式 CS 服 |
+| 地图作者显示名 | `kzgo.eu/api/*` | 公开只读；字段可能含 null |
+
+> 原则（2026-10-18 起）：成绩实时链路用官方 KZTimer；gokz.top 只作为**可落库缓存的辅助源**
+> （地图元信息/排行榜/封禁），任一时刻 gokz.top 不可用不影响已缓存数据展示，也不阻塞实时成绩；
+> 服务器改为插件 + Steam 公开 API，不依赖 gokz.top。
 
 关键接口（均已实测）：
 
@@ -461,6 +471,22 @@ POST /api/v2.0/records                 X-ApiKey: <key>
 2. 是否需要"仅本站服务器成绩"与"全球成绩"两套榜单可切换（`source` 字段已预留）。
 3. 上游封禁（`/v1/bans`）是否跟随清榜（策略问题，不阻塞实现）。
 
+### 9.11 服务器来源（2026-10-18 落地）
+
+服务器列表有两个来源，写入同一张 `servers` 表，以 `(ip, port)` 唯一键合并：
+
+| 来源 | 获取方式 | 优先级 | 字段完整度 |
+|---|---|---|---|
+| 本站插件 | `POST /api/v1/ingest/servers`（`X-ApiKey`，见 §9.6） | 高（10 分钟内不被覆盖） | 最全：名称/地图/人数/在线玩家昵称 |
+| Steam Web API | `IGameServersService/GetServerList`（需 `STEAM_API_KEY`） | 低 | 名称/地图/人数，无玩家昵称 |
+
+- Steam 侧按 `appid=730/4465480` + `gametype` 含 `gokz`/`cs2kz`/`kz` 过滤，只保留 KZ 模式 CS 服。
+- 同步策略：每 5 分钟拉一次 Steam；开始前先把 `source='steam'` 的置离线，本轮重新发现的写回在线。
+- 读取时插件优先：`upsert_steam_server` 在冲突时不覆盖 10 分钟内上报过的 `source='plugin'` 行
+  （`upsert_plugin_server` 始终覆盖）。
+- `GET /api/v1/servers` 只返回 `online AND is_public` 且（插件服 或 `game_mode` 带 kz）的行，响应含 `source`。
+- 运维：`ingest-key delete-server <ip> <port>` 清理误报。
+
 ## 10. 当前状态与下一步
 
 - 当前：第二步完成（2026-10-16，`develop`）：`web/` 三件套与 `~/cngokz-web` 逐字节一致，
@@ -531,6 +557,13 @@ POST /api/v2.0/records                 X-ApiKey: <key>
   全站强化视觉层次（§2 视觉系统已更新）：导航当前项墨绿实心、按钮主/次分明且 hover 浮起、
   表头浅绿底、面板/卡片常驻微阴影、卡片头浅绿渐变、玩家名改墨绿链接、页面顶部极浅墨绿晕染；
   `npm run build` 通过，1440 截图核对各页。
+- 当前：KZTimer 实时成绩 + 双来源服务器（2026-10-18，`develop`）：
+  最新记录改从 KZTimer `/records/top/recent` 拉取（60s 轮询，`source='kztimer'`）；
+  新增 `sources/kztimer.rs`、`sources/steam.rs`；服务器改为 Steam Web API（`STEAM_API_KEY`）+
+  插件上报（`POST /api/v1/ingest/servers`），`servers` 增 `source/appid/game_mode/steam_id/reported_at`
+  并以 `(ip, port)` 合并、插件优先、只显示 KZ 服；`0005_server_sources.sql` 已应用。
+  实测 Steam 侧 529 台 KZ 服、插件上报端点 200/401 与优先覆盖均正确；地图元信息/排行榜/封禁仍在
+  gokz.top 落库缓存（§9.2），后续可继续迁移到 KZTimer/本地计分。
 - 下一步（按序）：
   1. ~~旧阶段（vanilla 原型 + 单文件后端）~~ ✅ 已归档/替换
   2. ~~数据接入落地（§9）：`sources/` + `sync_jobs` + `scoring` + `0002/0003` + `ingest`；

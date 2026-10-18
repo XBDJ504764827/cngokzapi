@@ -13,6 +13,8 @@ pub struct AppConfig {
     pub database_url: String,
     /// Redis 连接串。Client 不建连，无库也可启动。
     pub redis_url: String,
+    /// Steam Web API key（IGameServersService 查询 KZ 服务器列表）。空则不启用 Steam 源。
+    pub steam_api_key: String,
 }
 
 impl AppConfig {
@@ -28,6 +30,7 @@ impl AppConfig {
                 "postgres://cngokz:cngokz@127.0.0.1:5432/cngokz",
             ),
             redis_url: env("REDIS_URL", "redis://127.0.0.1:6379"),
+            steam_api_key: env("STEAM_API_KEY", ""),
         }
     }
 

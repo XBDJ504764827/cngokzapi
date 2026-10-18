@@ -10,6 +10,8 @@ use crate::{
     modules::scoring,
     sources::{
         gokz_top::{GokzTop, TopRecordRow},
+        kztimer::{self, Kztimer},
+        steam::Steam,
         SourceClient, SourceError,
     },
 };
@@ -52,6 +54,13 @@ impl From<sqlx::Error> for JobError {
 fn parse_time(s: &str) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(s)
         .map(|t| t.with_timezone(&Utc))
+        .unwrap_or_else(|_| Utc::now())
+}
+
+/// KZTimer 的时间无时区（如 `2026-10-18T15:27:44`，实为 UTC），补充 UTC 后解析；失败退化为当前时间。
+fn parse_naive_utc(s: &str) -> DateTime<Utc> {
+    chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S")
+        .map(|t| DateTime::<Utc>::from_naive_utc_and_offset(t, Utc))
         .unwrap_or_else(|_| Utc::now())
 }
 
@@ -178,55 +187,50 @@ pub async fn run_leaderboard(
     Ok(n)
 }
 
-// ------------------------------ 最新记录 ------------------------------
+// ------------------------------ 最新记录（KZTimer 实时广播源） ------------------------------
+
+/// KZTimer 拉取条数（接口不支持按模式过滤，拉回后本地筛选）。
+const RECENT_FETCH: i64 = 300;
 
 pub async fn run_recent(pool: &PgPool, src: &SourceClient, mode: &str) -> Result<usize, JobError> {
-    let page = GokzTop(src).recent_records(mode, 200).await?;
+    let rows = Kztimer(src).recent_records(RECENT_FETCH).await?;
     let mut n = 0;
-    for r in &page.data {
-        let Some(steam_id) = r.player.steamid64.parse::<i64>().ok() else {
+    for r in &rows {
+        // 接口不支持按模式过滤，这里本地筛选（PROJECT §9.2）
+        if kztimer::mode_name(&r.mode) != Some(mode) {
+            continue;
+        }
+        let Some(steam_id) = r.steamid64.parse::<i64>().ok() else {
             continue;
         };
-        repository::upsert_player(pool, steam_id, &r.player.display_name).await?;
-
-        let (map_name, map_ext_id, tier) = match &r.map {
-            Some(m) => (m.name.clone(), m.id, m.tier.unwrap_or(0)),
-            None => continue,
+        let Some(map_name) = r.map_name.as_deref() else {
+            continue;
         };
-        let map_id = match repository::map_id_by_name(pool, &map_name).await? {
+        repository::upsert_player(pool, steam_id, &r.player_name).await?;
+        let map_id = match repository::map_id_by_name(pool, map_name).await? {
             Some(id) => id,
-            None => repository::ensure_map(pool, map_ext_id, &map_name, tier).await?,
+            None => repository::ensure_map(pool, r.map_id.unwrap_or(0), map_name, 0).await?,
         };
-        let mode_name = mode_name(
-            r.mode.as_ref().map(|m| m.name.as_str()),
-            r.mode.as_ref().map(|m| m.id),
-        );
-        let (server_name, server_group) = match &r.server {
-            Some(s) => (
-                s.name.clone(),
-                s.group.as_ref().and_then(|g| g.custom_id.clone()),
-            ),
-            None => (None, None),
-        };
+        let external_id = format!("kztimer:{}", r.id);
         repository::upsert_record(
             pool,
             &RecordUpsert {
-                external_id: Some(&r.uuid),
+                external_id: Some(&external_id),
                 steam_id,
                 map_id,
-                mode: &mode_name,
+                mode,
                 stage: r.stage,
-                tickrate: 128,
+                tickrate: if r.tickrate > 0 { r.tickrate } else { 128 },
                 teleports: r.teleports,
                 time_ms: secs_to_ms(r.time),
                 points: r.points,
-                source: "gokz_top",
-                origin_server_id: r.server.as_ref().and_then(|s| s.id),
-                server_name: server_name.as_deref(),
-                server_group: server_group.as_deref(),
+                source: "kztimer",
+                origin_server_id: r.server_id,
+                server_name: r.server_name.as_deref(),
+                server_group: None,
                 wr_time_ms: None,
                 is_valid: true,
-                created_at: parse_time(&r.created_on),
+                created_at: parse_naive_utc(&r.created_on),
             },
         )
         .await?;
@@ -408,65 +412,54 @@ async fn best_points(pool: &PgPool, steam_id: i64, mode: &str) -> Result<Vec<i64
 
 // ------------------------------ 服务器 / 封禁 ------------------------------
 
-pub async fn run_servers(pool: &PgPool, src: &SourceClient) -> Result<usize, JobError> {
-    let page = GokzTop(src).servers().await?;
+pub async fn run_servers(
+    pool: &PgPool,
+    src: &SourceClient,
+    steam_key: &str,
+) -> Result<usize, JobError> {
+    // 服务器列表来源之一：Steam Web API（公开接口，需 key）。
+    // 另一个来源是装了本站插件的服务器通过 `/api/v1/ingest/servers` 上报，读取时插件优先。
+    let rows = Steam(src, steam_key).kz_servers().await?;
+    // 先把上一轮 Steam 在线的置离线，本轮重新发现的再写回在线
+    repository::mark_steam_servers_offline(pool).await?;
     let tiers = repository::map_tiers(pool).await?;
     let mut n = 0;
-    for s in &page.data {
-        let live = s.live_status.as_ref();
-        let name = live
-            .and_then(|l| l.hostname.clone())
-            .unwrap_or_else(|| format!("{}:{}", s.ip, s.port));
-        let map = live.and_then(|l| l.map.clone()).unwrap_or_default();
-        let map_tier = tiers.get(&map).copied().unwrap_or(0);
-        let player_names: Vec<String> = live
-            .and_then(|l| l.players.as_ref())
-            .map(|list| list.iter().filter_map(|p| p.name.clone()).collect())
-            .unwrap_or_default();
-        // 上游标记为 disabled 的服务器不计入在线
-        let online = live.and_then(|l| l.is_online).unwrap_or(false)
-            && s.status.as_deref() != Some("disabled");
-        repository::upsert_server(
+    for s in &rows {
+        let Some((ip, port)) = s.ip_port() else {
+            continue;
+        };
+        let map_tier = tiers.get(&s.map).copied().unwrap_or(0);
+        let external_id = format!("steam:{ip}:{port}");
+        repository::upsert_steam_server(
             pool,
             &ServerUpsert {
-                external_id: &s.id,
-                name: &name,
-                map: &map,
-                ip: &s.ip,
-                port: s.port,
-                player_count: live.and_then(|l| l.player_count).unwrap_or(0),
-                max_players: live.and_then(|l| l.max_players).unwrap_or(0),
-                country: s.country.as_deref(),
-                city: s.city.as_deref(),
-                region: s.region.as_deref(),
-                group_name: s.group.as_ref().and_then(|g| g.name.as_deref()),
-                group_custom_id: s.group.as_ref().and_then(|g| g.custom_id.as_deref()),
-                is_public: s.is_public.unwrap_or(true),
-                online,
+                external_id: &external_id,
+                name: &s.name,
+                map: &s.map,
+                ip: &ip,
+                port,
+                player_count: s.players,
+                max_players: s.max_players,
+                country: None,
+                city: None,
+                region: None,
+                group_name: None,
+                group_custom_id: None,
+                is_public: true,
+                online: true,
                 map_tier,
-                player_names: &player_names,
-                last_seen_at: live.and_then(|l| l.updated_at.as_deref()).map(parse_time),
+                player_names: &[],
+                last_seen_at: None,
+                source: "steam",
+                appid: Some(s.appid),
+                game_mode: Some(&s.gametype),
+                steam_id: None,
             },
         )
         .await?;
         n += 1;
     }
-    let with_players = page
-        .data
-        .iter()
-        .filter(|s| {
-            s.live_status
-                .as_ref()
-                .and_then(|l| l.players.as_ref())
-                .map(|p| !p.is_empty())
-                .unwrap_or(false)
-        })
-        .count();
-    tracing::info!(
-        servers = page.data.len(),
-        with_players,
-        "服务器同步：解析到玩家名单"
-    );
+    tracing::info!(servers = rows.len(), "Steam 服务器同步完成（KZ 服）");
     Ok(n)
 }
 

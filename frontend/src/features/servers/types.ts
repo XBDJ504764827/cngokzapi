@@ -15,6 +15,8 @@ export interface ServerEntry {
   group_name: string | null
   /** 社区分类（后端按 group_name / 服务器名归一化，如 CNGOKZ、AXE、HIME）。 */
   category: string
+  /** 数据来源：`plugin`（本站插件上报，优先）/ `steam`（Steam Web API）。 */
+  source: string
   online: boolean
   /** 当前地图难度（0 = 未知） */
   map_tier: number

@@ -17,6 +17,8 @@ pub struct ServerEntry {
     pub group_name: Option<String>,
     /// 社区分类：优先上游 `group_name`，缺失时从服务器名推导（见 `category.rs`）。
     pub category: String,
+    /// 数据来源：`plugin`（本站插件上报，优先）/ `steam`（Steam Web API）。
+    pub source: String,
     pub online: bool,
     /// 当前地图难度（0 = 未知）。
     pub map_tier: i16,

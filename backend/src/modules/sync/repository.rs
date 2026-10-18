@@ -58,7 +58,7 @@ pub struct ScoreUpsert<'a> {
     pub region: Option<&'a str>,
 }
 
-/// 服务器 upsert 载荷。
+/// 服务器 upsert 载荷（Steam 发现 / 插件上报共用）。
 pub struct ServerUpsert<'a> {
     pub external_id: &'a str,
     pub name: &'a str,
@@ -76,10 +76,18 @@ pub struct ServerUpsert<'a> {
     pub online: bool,
     /// 当前地图难度（按地图名从 `maps` 关联，0 表示未知）。
     pub map_tier: i16,
-    /// 实时在线玩家昵称（上游 `live_status.players[].name`）。
+    /// 实时在线玩家昵称。
     pub player_names: &'a [String],
-    /// 心跳时间（上游 `live_status.updated_at`）。
+    /// 心跳时间。
     pub last_seen_at: Option<DateTime<Utc>>,
+    /// 来源：`steam` / `plugin`（插件优先，见下）。
+    pub source: &'a str,
+    /// Steam 服 appid（730 / 4465480）。
+    pub appid: Option<i64>,
+    /// gametype 原始串（含 KZ 标签，用于只显示 KZ 服）。
+    pub game_mode: Option<&'a str>,
+    /// Steam 服 id。
+    pub steam_id: Option<&'a str>,
 }
 
 /// 封禁 upsert 载荷。
@@ -189,6 +197,17 @@ pub async fn ensure_map(
     .fetch_one(pool)
     .await?;
     Ok(row.0)
+}
+
+/// 按地图名取当前难度（`tier_kzt` 优先，回退综合 tier）；无此图返回 None。
+pub async fn map_tier_by_name(pool: &PgPool, name: &str) -> Result<Option<i16>, sqlx::Error> {
+    let row: Option<(i16,)> = sqlx::query_as(
+        "SELECT CASE WHEN tier_kzt > 0 THEN tier_kzt ELSE tier END FROM maps WHERE name = $1",
+    )
+    .bind(name)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.map(|r| r.0))
 }
 
 /// 按地图名取内部 id。
@@ -363,18 +382,19 @@ pub async fn update_local_points(
     Ok(())
 }
 
-/// 服务器 upsert。
-pub async fn upsert_server(pool: &PgPool, s: &ServerUpsert<'_>) -> Result<(), sqlx::Error> {
+/// Steam 服务器 upsert：以 `(ip, port)` 合并；插件数据（10 分钟内）优先，不覆盖。
+/// 同步开始前先调 `mark_steam_servers_offline`，不在本轮列表里的 Steam 服标离线。
+pub async fn upsert_steam_server(pool: &PgPool, s: &ServerUpsert<'_>) -> Result<(), sqlx::Error> {
     sqlx::query(
         r#"INSERT INTO servers (external_id, name, map, ip, port, player_count, max_players, updated_at,
-                                country, city, region, group_name, group_custom_id,
-                                is_public, online, map_tier, player_names, last_seen_at)
+                                country, city, region, group_name, group_custom_id, is_public, online,
+                                map_tier, player_names, last_seen_at, source, appid, game_mode, steam_id, reported_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, now(), $8, $9, $10, $11, $12, $13, $14, $15, $16,
-                   COALESCE($17, now()))
-           ON CONFLICT (external_id) DO UPDATE SET
+                   COALESCE($17, now()), 'steam', $18, $19, $20, now())
+           ON CONFLICT (ip, port) DO UPDATE SET
+               external_id     = EXCLUDED.external_id,
                name            = EXCLUDED.name,
                map             = EXCLUDED.map,
-               ip              = EXCLUDED.ip,
                port            = EXCLUDED.port,
                player_count    = EXCLUDED.player_count,
                max_players     = EXCLUDED.max_players,
@@ -387,8 +407,15 @@ pub async fn upsert_server(pool: &PgPool, s: &ServerUpsert<'_>) -> Result<(), sq
                online          = EXCLUDED.online,
                map_tier        = EXCLUDED.map_tier,
                player_names    = EXCLUDED.player_names,
+               source          = 'steam',
+               appid           = EXCLUDED.appid,
+               game_mode       = EXCLUDED.game_mode,
+               steam_id        = EXCLUDED.steam_id,
                updated_at      = now(),
-               last_seen_at    = COALESCE(EXCLUDED.last_seen_at, now())"#,
+               last_seen_at    = COALESCE(EXCLUDED.last_seen_at, now()),
+               reported_at     = now()
+           WHERE servers.source <> 'plugin' OR servers.reported_at IS NULL
+                 OR servers.reported_at < now() - interval '10 minutes'"#,
     )
     .bind(s.external_id)
     .bind(s.name)
@@ -407,9 +434,60 @@ pub async fn upsert_server(pool: &PgPool, s: &ServerUpsert<'_>) -> Result<(), sq
     .bind(s.map_tier)
     .bind(s.player_names)
     .bind(s.last_seen_at)
+    .bind(s.appid)
+    .bind(s.game_mode)
+    .bind(s.steam_id)
     .execute(pool)
     .await?;
     Ok(())
+}
+
+/// 插件服务器上报 upsert：以 `(ip, port)` 合并，始终以 `source='plugin'` 覆盖（实时数据最优）。
+pub async fn upsert_plugin_server(pool: &PgPool, s: &ServerUpsert<'_>) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"INSERT INTO servers (external_id, name, map, ip, port, player_count, max_players, updated_at,
+                                is_public, online, map_tier, player_names, last_seen_at,
+                                source, game_mode, reported_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, now(), TRUE, TRUE, $8, $9, now(), 'plugin', $10, now())
+           ON CONFLICT (ip, port) DO UPDATE SET
+               external_id  = EXCLUDED.external_id,
+               name         = EXCLUDED.name,
+               map          = EXCLUDED.map,
+               player_count = EXCLUDED.player_count,
+               max_players  = EXCLUDED.max_players,
+               map_tier     = EXCLUDED.map_tier,
+               player_names = EXCLUDED.player_names,
+               online       = TRUE,
+               is_public    = TRUE,
+               source       = 'plugin',
+               game_mode    = COALESCE(EXCLUDED.game_mode, servers.game_mode),
+               updated_at   = now(),
+               last_seen_at = now(),
+               reported_at  = now()"#,
+    )
+    .bind(s.external_id)
+    .bind(s.name)
+    .bind(s.map)
+    .bind(s.ip)
+    .bind(s.port)
+    .bind(s.player_count)
+    .bind(s.max_players)
+    .bind(s.map_tier)
+    .bind(s.player_names)
+    .bind(s.game_mode)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// 把上一轮由 Steam 标记为在线的服务器先置为离线（本轮重新发现的会再写回在线）。
+pub async fn mark_steam_servers_offline(pool: &PgPool) -> Result<u64, sqlx::Error> {
+    let res = sqlx::query(
+        "UPDATE servers SET online = FALSE, updated_at = now() WHERE source = 'steam' AND online",
+    )
+    .execute(pool)
+    .await?;
+    Ok(res.rows_affected())
 }
 
 /// 封禁 upsert（按 external_id 幂等）。

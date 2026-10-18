@@ -3,13 +3,13 @@
 use chrono::{DateTime, Utc};
 
 use super::{
-    dto::{CompatRecord, IngestItem},
+    dto::{CompatRecord, IngestItem, IngestServer},
     models::{CompatResponse, IngestResult},
     repository,
 };
 use crate::{
     errors::AppError,
-    modules::sync::repository::{self as sync_repo, RecordUpsert},
+    modules::sync::repository::{self as sync_repo, RecordUpsert, ServerUpsert},
     state::AppState,
 };
 
@@ -64,6 +64,62 @@ pub async fn authenticate(state: &AppState, key: Option<&str>) -> Result<AuthCon
         }),
         None => Err(AppError::Unauthorized),
     }
+}
+
+/// 插件上报服务器信息：写入 `servers`（source='plugin'，以 (ip, port) 合并并优先于 Steam）。
+pub async fn ingest_server(
+    state: &AppState,
+    auth: &AuthContext,
+    report: &IngestServer,
+) -> Result<(), AppError> {
+    let ip = report.ip.trim();
+    if ip.is_empty() || report.port <= 0 || report.port > 65_535 {
+        return Err(AppError::BadRequest("ip/port 非法".to_string()));
+    }
+    let map = report.map.clone().unwrap_or_default();
+    let map_tier = match report.map_tier {
+        Some(t) => t,
+        None if !map.is_empty() => sync_repo::map_tier_by_name(&state.db, &map)
+            .await?
+            .unwrap_or(0),
+        None => 0,
+    };
+    let players = report.players.clone().unwrap_or_default();
+    let name = report
+        .name
+        .clone()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| format!("{ip}:{}", report.port));
+    let external_id = format!("plugin:{ip}:{}", report.port);
+    let player_count = report.player_count.unwrap_or(players.len() as i32);
+    sync_repo::upsert_plugin_server(
+        &state.db,
+        &ServerUpsert {
+            external_id: &external_id,
+            name: &name,
+            map: &map,
+            ip,
+            port: report.port,
+            player_count,
+            max_players: report.max_players.unwrap_or(0),
+            country: None,
+            city: None,
+            region: None,
+            group_name: Some(&auth.group_name),
+            group_custom_id: auth.custom_id.as_deref(),
+            is_public: true,
+            online: true,
+            map_tier,
+            player_names: &players,
+            last_seen_at: None,
+            source: "plugin",
+            appid: None,
+            game_mode: Some(report.game_mode.as_deref().unwrap_or("kz")),
+            steam_id: None,
+        },
+    )
+    .await?;
+    Ok(())
 }
 
 /// SteamID64：17 位纯数字。

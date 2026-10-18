@@ -74,6 +74,7 @@ mod tests {
             web_dir: "/nonexistent-web-dir".to_string(),
             database_url: "postgres://user:pass@127.0.0.1:1/db".to_string(),
             redis_url: "redis://127.0.0.1:6379".to_string(),
+            steam_api_key: String::new(),
         };
         let app = create_app(AppState::new(config));
         let res = app

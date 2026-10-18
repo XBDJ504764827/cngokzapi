@@ -41,6 +41,31 @@ fn default_tickrate() -> i32 {
     128
 }
 
+/// 插件上报的服务器信息（`POST /api/v1/ingest/servers`）。
+/// 装了本站插件的服务器用它上报实时人数/地图/玩家，读取时优先于 Steam 发现的数据。
+#[derive(Debug, Clone, Deserialize)]
+pub struct IngestServer {
+    pub ip: String,
+    pub port: i32,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub map: Option<String>,
+    #[serde(default)]
+    pub player_count: Option<i32>,
+    #[serde(default)]
+    pub max_players: Option<i32>,
+    /// 在线玩家昵称。
+    #[serde(default)]
+    pub players: Option<Vec<String>>,
+    /// 模式标记（缺省视为 KZ；用于只展示 KZ 服）。
+    #[serde(default)]
+    pub game_mode: Option<String>,
+    /// 当前地图难度（可选，缺省按地图名从 `maps` 关联）。
+    #[serde(default)]
+    pub map_tier: Option<i16>,
+}
+
 /// GlobalAPI 兼容层的请求体（`POST /api/v2.0/records`，与官方客户端字段一致）。
 #[derive(Debug, Clone, Deserialize)]
 pub struct CompatRecord {

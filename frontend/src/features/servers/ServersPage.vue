@@ -163,6 +163,10 @@ function region(server: ServerEntry): string {
             <span class="server-info-value" :title="s.map">{{ s.map || '—' }}</span>
           </div>
           <div class="server-info-row">
+            <span class="server-info-label">数据来源</span>
+            <span class="server-info-value">{{ s.source === 'plugin' ? '插件上报' : 'Steam 公开 API' }}</span>
+          </div>
+          <div class="server-info-row">
             <span class="server-info-label">难度 / 区域</span>
             <span class="server-info-value">
               {{ s.map_tier > 0 ? `Tier ${s.map_tier}` : 'Tier —' }} · {{ region(s) }}
@@ -208,6 +212,7 @@ function region(server: ServerEntry): string {
           <h3 class="server-name" :title="s.name">{{ s.name }}</h3>
           <div class="server-meta">
             <span class="cat-tag small">{{ s.category }}</span>
+            <span class="src-tag" :class="s.source">{{ s.source === 'plugin' ? '插件' : 'Steam' }}</span>
             <span class="meta-strong" :title="s.map">{{ s.map || '—' }}</span>
             <span class="meta-sep">·</span>
             <span>{{ s.map_tier > 0 ? `Tier ${s.map_tier}` : 'Tier —' }}</span>
@@ -327,6 +332,22 @@ function region(server: ServerEntry): string {
   background-color: var(--accent-soft);
   box-shadow: none;
   font-size: 12px;
+  color: var(--accent);
+}
+
+/* 数据来源标签：插件=绿，Steam=中性 */
+.src-tag {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background-color: var(--bg-subtle);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.src-tag.plugin {
+  background-color: var(--accent-soft);
   color: var(--accent);
 }
 
