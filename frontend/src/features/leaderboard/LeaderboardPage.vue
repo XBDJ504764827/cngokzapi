@@ -113,7 +113,6 @@ const columns = computed(() =>
                 </RouterLink>
                 <span class="lb-points mono">{{ formatNumber(e.total_points) }}</span>
               </div>
-              <div class="lb-line lb-steam mono">{{ e.steam_id64 }}</div>
               <div class="lb-line lb-meta">
                 <span>{{ e.maps_completed }} 图</span>
                 <span class="sep">·</span>
@@ -236,11 +235,6 @@ const columns = computed(() =>
   flex-wrap: wrap;
   justify-content: flex-start;
   gap: 4px;
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.lb-steam {
   font-size: 11px;
   color: var(--text-muted);
 }

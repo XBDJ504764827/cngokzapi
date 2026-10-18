@@ -12,6 +12,8 @@ const props = defineProps<{
   avatar?: string
   /** 是否把名称链到个人资料页 */
   link?: boolean
+  /** 紧凑模式：隐藏 SteamID64、缩小头像（用于并排表格） */
+  compact?: boolean
 }>()
 
 // 头像：有真实头像用真实的，否则用按 SteamID64 生成的占位图；图片失败时退回昵称首字
@@ -21,15 +23,17 @@ const initial = computed(() => (props.player ? props.player.trim().charAt(0) : '
 
 <template>
   <div class="player-cell">
-    <NAvatar :src="src" :size="32" round>
+    <NAvatar :src="src" :size="compact ? 26 : 32" round>
       {{ initial }}
     </NAvatar>
     <div class="player-id">
       <div class="player-name">
-        <RouterLink v-if="link !== false" :to="`/profile/${steamId64}`">{{ player }}</RouterLink>
+        <RouterLink v-if="link !== false" :to="`/profile/${steamId64}`" :title="player">
+          {{ player }}
+        </RouterLink>
         <template v-else>{{ player }}</template>
       </div>
-      <div class="player-steam">{{ steamId64 }}</div>
+      <div v-if="!compact" class="player-steam">{{ steamId64 }}</div>
     </div>
   </div>
 </template>

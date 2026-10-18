@@ -10,6 +10,26 @@
 
 ---
 
+## 2026年10月19日 01时17分28秒 排行榜隐藏 SteamID64；地图详情 PRO/TP 双列并排
+
+- 背景：用户要求（1）排行榜可点击玩家名进资料页、不显示 SteamID64；（2）地图详情 PRO/TP
+  上下排列看得累，改为双列，且不能出现横向滑动。
+- 变更内容：
+  - 排行榜：移除行内 SteamID64（搜索仍支持 SteamID64）；玩家名仍为 `/profile/:steamid` 链接，
+    点击已验证跳转正常。
+  - 地图详情：PRO/TP 两榜改为**双列并排**（`repeat(2, minmax(0,1fr))`，≤1100px 堆叠）；
+    `PlayerCell` 新增 `compact` 模式（隐藏 SteamID64、头像 26px）；上传时间改 `YY-MM-DD HH:mm`，
+    列宽收紧（排名 56 / 完成时间 84 / 分数 52 / 存读点 58 / 上传 126），实测两表
+    `scrollWidth == clientWidth`（无横向滑动），所有字段完整可见。
+- 涉及文件：`frontend/src/components/PlayerCell.vue`、
+  `frontend/src/features/leaderboard/LeaderboardPage.vue`、
+  `frontend/src/features/maps/MapDetailPage.vue`、`frontend/src/utils/format.ts`、
+  `PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无。
+- 测试与结果（北京时间）：`npm run build` 通过；Playwright 验证：排行榜可见 SteamID64 数量 = 0，
+  点击首个玩家名跳转 `/profile/76561198297415967`；地图详情双列 `568px 568px`，
+  两张表 `client=564 / scroll=564`，无横向溢出；截图确认列完整显示。
+
 ## 2026年10月19日 01时07分29秒 地图详情页改版：三模式 PRO/TP 榜 + 大图/等级/制作人/最快时间
 
 - 背景：删除全局模式切换后，地图详情默认只能看 KZT；用户要求三模式都可查看并重新设计，

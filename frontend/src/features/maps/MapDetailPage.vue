@@ -8,7 +8,7 @@ import RankBadge from '@/components/RankBadge.vue'
 import { useApi } from '@/composables/useApi'
 import { MODES } from '@/types/common'
 import type { Mode } from '@/types/common'
-import { formatDateTime, formatFilesize, formatTier } from '@/utils/format'
+import { formatDateTimeTiny, formatFilesize, formatTier } from '@/utils/format'
 import { mapImage } from '@/utils/mapImage'
 import { fetchMapDetail } from './api'
 import type { MapRecordEntry } from './types'
@@ -60,25 +60,30 @@ function boardColumns(withTeleports: boolean): DataTableColumns<MapRecordEntry> 
     {
       title: '排名',
       key: 'rank',
-      width: 66,
+      width: 56,
       render: (row) => h(RankBadge, { rank: row.rank }),
     },
     {
       title: '玩家',
       key: 'player',
       render: (row) =>
-        h(PlayerCell, { player: row.player, steamId64: row.steam_id64, avatar: row.avatar }),
+        h(PlayerCell, {
+          player: row.player,
+          steamId64: row.steam_id64,
+          avatar: row.avatar,
+          compact: true,
+        }),
     },
     {
       title: '完成时间',
       key: 'time',
-      width: 96,
+      width: 84,
       render: (row) => h('span', { class: 'mono time-strong' }, row.time),
     },
     {
       title: '分数',
       key: 'points',
-      width: 66,
+      width: 52,
       render: (row) => h('span', { class: 'mono' }, row.points > 0 ? row.points : '—'),
     },
   ]
@@ -86,15 +91,15 @@ function boardColumns(withTeleports: boolean): DataTableColumns<MapRecordEntry> 
     cols.push({
       title: '存读点',
       key: 'teleports',
-      width: 72,
+      width: 58,
       render: (row) => h('span', { class: 'mono' }, `${row.teleports} 次`),
     })
   }
   cols.push({
     title: '上传时间',
     key: 'created_at',
-    width: 140,
-    render: (row) => h('span', { class: 'mono upload' }, formatDateTime(row.created_at)),
+    width: 126,
+    render: (row) => h('span', { class: 'mono upload' }, formatDateTimeTiny(row.created_at)),
   })
   return cols
 }
@@ -552,15 +557,17 @@ const tpColumns = boardColumns(true)
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.22);
 }
 
-/* ---------- PRO / TP 榜 ---------- */
-/* 两榜上下堆叠、各占满宽：TP 多一列「存读点」，并排会截断上传时间 */
+/* ---------- PRO / TP 榜：双列并排，紧凑列宽防止横向滑动 ---------- */
 .boards-grid {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
 }
 
+/* 同行面板取消全局「相邻面板上间距」，否则第二列会下沉 */
 .boards-grid .panel + .panel {
-  margin-top: 16px;
+  margin-top: 0;
 }
 
 .time-strong {
@@ -578,6 +585,16 @@ const tpColumns = boardColumns(true)
   text-align: center;
   font-size: 13px;
   color: var(--text-muted);
+}
+
+@media (max-width: 1100px) {
+  .boards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .boards-grid .panel + .panel {
+    margin-top: 16px;
+  }
 }
 
 @media (max-width: 860px) {
