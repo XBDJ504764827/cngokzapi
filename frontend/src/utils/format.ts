@@ -22,3 +22,11 @@ export function formatFilesize(bytes: number): string {
 export function formatTier(tier: number): string {
   return tier > 0 ? `T${tier}` : '—'
 }
+
+/** UTC ISO8601 → `MM-DD HH:mm`（本地时区）；无效时原样返回。 */
+export function formatDateTimeShort(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}

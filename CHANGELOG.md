@@ -10,6 +10,27 @@
 
 ---
 
+## 2026-10-18 最新记录展示地图图片/地图名/头像/分数/耗时/上传时间，地图可点进详情
+
+- 背景：用户反馈最新记录仍不能完整展示，需同时显示地图名称、地图图片、玩家头像、
+  获取分数、完成地图时间、记录上传时间，并要求点击地图可看地图详情。
+- 变更内容：
+  - 后端 `modules/records`：`RecordEntry` 新增 `map_id`（跳地图详情/拼图片），
+    `date` 改为 `created_at`（UTC ISO8601，前端按本地时区格式化）；SQL 加选 `m.id`、
+    `to_char(created_at AT TIME ZONE 'UTC', ...)`。
+  - 前端 `RecordsPage` 每条改为「缩略图 + 两行」：左侧地图缩略图（`mapImage` thumbnails，
+    点击进 `/maps/:id`），右侧第一行 地图名（可点）+ 完成耗时，第二行 玩家头像 + 玩家名（可点）
+    + `N 分` + 上传时间（`MM-DD HH:mm`，hover 看完整时间）；一列内完整展示，无横向滚动。
+  - `utils/format.ts` 新增 `formatDateTimeShort`；`features/records/types.ts` 同步字段。
+- 涉及文件：修改 `backend/src/modules/records/{models,repository}.rs`、
+  `frontend/src/features/records/{types.ts,RecordsPage.vue}`、`frontend/src/utils/format.ts`、
+  `PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无迁移；`GET /api/v1/records` 新增 `map_id`，`date` 字段被 `created_at`
+  （ISO8601）取代。
+- 测试与结果（2026-10-18）：`cargo fmt`/`cargo build`、`npm run build` 通过；
+  实测接口返回 `map_id`/`created_at`；Playwright 截图确认六项信息齐全，点击缩略图正确跳转
+  `/maps/285`。
+
 ## 2026-10-18 服务器按钮左右分列 + 最新记录两行式完整展示
 
 - 背景：用户反馈服务器卡片上「加入游戏 / 复制 IP」挤在一起，要求分列到最左/最右；

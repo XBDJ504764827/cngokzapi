@@ -9,21 +9,23 @@ use crate::modules::format::format_duration_ms;
 struct Row {
     player: String,
     steam_id: String,
+    map_id: i64,
     map: String,
     mode: String,
     time_ms: i32,
     points: i32,
-    date: String,
+    created_at: String,
 }
 
 const SQL: &str = r#"
 SELECT p.name                              AS player,
        p.steam_id::TEXT                     AS steam_id,
+       m.id                                 AS map_id,
        m.name                              AS map,
        r.mode                              AS mode,
        r.time_ms                           AS time_ms,
        r.points                            AS points,
-       to_char(r.created_at, 'YYYY-MM-DD')  AS date
+       to_char(r.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at
 FROM records r
 JOIN players p ON p.steam_id = r.player_steam_id
 JOIN maps m ON m.id = r.map_id
@@ -48,11 +50,12 @@ pub async fn latest_by_mode(
         .map(|r| RecordEntry {
             player: r.player,
             steam_id64: r.steam_id,
+            map_id: r.map_id,
             map: r.map,
             mode: r.mode,
             time: format_duration_ms(r.time_ms),
             points: i64::from(r.points),
-            date: r.date,
+            created_at: r.created_at,
         })
         .collect())
 }

@@ -6,6 +6,8 @@ import { useApi } from '@/composables/useApi'
 import { MODES } from '@/types/common'
 import type { Mode } from '@/types/common'
 import { avatarUrl } from '@/utils/avatar'
+import { formatDateTimeShort } from '@/utils/format'
+import { mapImage } from '@/utils/mapImage'
 import { fetchRecords } from './api'
 import type { RecordEntry } from './types'
 
@@ -16,12 +18,18 @@ function rowsFor(mode: Mode): RecordEntry[] {
 }
 
 const hasData = computed(() => (data.value ?? []).length > 0)
+
+/** 地图缩略图加载失败时隐藏，露出底色占位。 */
+function onImageError(e: Event): void {
+  const img = e.target as HTMLImageElement
+  img.style.display = 'none'
+}
 </script>
 
 <template>
   <div class="page-head">
     <h1 class="page-title">最新记录</h1>
-    <p class="page-sub">三模式并排，各列最新 20 条 · 点击玩家名查看资料</p>
+    <p class="page-sub">三模式并排，各列最新 20 条 · 点击地图查看详情、点击玩家名查看资料</p>
   </div>
 
   <NSpin :show="loading">
@@ -40,23 +48,49 @@ const hasData = computed(() => (data.value ?? []).length > 0)
           <NTag type="success" size="small">最新 20 条</NTag>
         </template>
 
-        <!-- 两行式条目：一列内即可完整展示玩家/地图/时间/分数/日期，无需横向滚动 -->
+        <!-- 条目：左地图缩略图（可点进地图详情），右侧逐行给出全部字段 -->
         <div class="rec-list">
           <div v-for="(r, i) in rowsFor(mode)" :key="i" class="rec-row">
-            <NAvatar :src="avatarUrl(r.steam_id64)" :size="26" round class="rec-avatar" />
+            <RouterLink class="rec-thumb" :to="`/maps/${r.map_id}`" :title="`查看 ${r.map} 地图详情`">
+              <div class="rec-thumb-fallback">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3Zm0 0v15m6-12v15" />
+                </svg>
+              </div>
+              <img :src="mapImage(r.map, 'thumbnails')" :alt="r.map" loading="lazy" @error="onImageError" />
+            </RouterLink>
+
             <div class="rec-body">
               <div class="rec-line">
-                <RouterLink class="rec-player" :to="`/profile/${r.steam_id64}`" :title="r.player">
-                  {{ r.player }}
-                </RouterLink>
-                <span class="rec-time mono">{{ r.time }}</span>
+                <RouterLink class="rec-map" :to="`/maps/${r.map_id}`" :title="r.map">{{ r.map }}</RouterLink>
+                <span class="rec-time mono" title="完成耗时">{{ r.time }}</span>
               </div>
               <div class="rec-line">
-                <span class="rec-map" :title="r.map">{{ r.map }}</span>
+                <span class="rec-player-wrap">
+                  <NAvatar :src="avatarUrl(r.steam_id64)" :size="18" round />
+                  <RouterLink
+                    class="rec-player"
+                    :to="`/profile/${r.steam_id64}`"
+                    :title="r.player"
+                  >
+                    {{ r.player }}
+                  </RouterLink>
+                </span>
                 <span class="rec-meta">
                   <span class="rec-points mono">{{ r.points }} 分</span>
                   <span class="rec-dot">·</span>
-                  <span class="rec-date mono">{{ r.date }}</span>
+                  <span class="rec-upload mono" :title="`上传于 ${r.created_at}`">
+                    {{ formatDateTimeShort(r.created_at) }}
+                  </span>
                 </span>
               </div>
             </div>
@@ -108,9 +142,40 @@ const hasData = computed(() => (data.value ?? []).length > 0)
   border-top: 1px solid var(--border-color);
 }
 
-.rec-avatar {
+/* 地图缩略图：点击进入地图详情 */
+.rec-thumb {
+  position: relative;
   flex-shrink: 0;
+  width: 76px;
+  height: 44px;
+  border-radius: var(--radius-sm);
   background-color: var(--bg-subtle);
+  overflow: hidden;
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.rec-thumb:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(28, 28, 26, 0.16);
+}
+
+.rec-thumb-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.rec-thumb img {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .rec-body {
@@ -122,17 +187,49 @@ const hasData = computed(() => (data.value ?? []).length > 0)
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 
 .rec-line + .rec-line {
-  margin-top: 2px;
+  margin-top: 3px;
+}
+
+.rec-map {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rec-map:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.rec-time {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.rec-player-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
 }
 
 .rec-player {
   min-width: 0;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--accent);
   text-decoration: none;
@@ -147,39 +244,25 @@ const hasData = computed(() => (data.value ?? []).length > 0)
   text-underline-offset: 2px;
 }
 
-.rec-time {
-  flex-shrink: 0;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--accent);
-}
-
-.rec-map {
-  flex: 1;
-  min-width: 0;
-  font-size: 12px;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .rec-meta {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   flex-shrink: 0;
   font-size: 12px;
-  color: var(--text-muted);
 }
 
 .rec-points {
   color: #8a6a2f;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .rec-dot {
   color: var(--border-strong);
+}
+
+.rec-upload {
+  color: var(--text-muted);
 }
 
 @media (max-width: 1080px) {
