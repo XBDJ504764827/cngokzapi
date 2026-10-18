@@ -6,15 +6,18 @@ import { NAvatar } from 'naive-ui'
 import { RouterLink } from 'vue-router'
 import { avatarUrl } from '@/utils/avatar'
 
-const props = defineProps<{
-  player: string
-  steamId64: string
-  avatar?: string
-  /** 是否把名称链到个人资料页 */
-  link?: boolean
-  /** 紧凑模式：隐藏 SteamID64、缩小头像（用于并排表格） */
-  compact?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    player: string
+    steamId64: string
+    avatar?: string
+    /** 是否把名称链到个人资料页（默认 true） */
+    link?: boolean
+    /** 紧凑模式：隐藏 SteamID64、缩小头像（用于并排表格） */
+    compact?: boolean
+  }>(),
+  { link: true, compact: false },
+)
 
 // 头像：有真实头像用真实的，否则用按 SteamID64 生成的占位图；图片失败时退回昵称首字
 const src = computed(() => avatarUrl(props.steamId64, props.avatar))
@@ -28,7 +31,7 @@ const initial = computed(() => (props.player ? props.player.trim().charAt(0) : '
     </NAvatar>
     <div class="player-id">
       <div class="player-name">
-        <RouterLink v-if="link !== false" :to="`/profile/${steamId64}`" :title="player">
+        <RouterLink v-if="link" :to="`/profile/${steamId64}`" :title="player">
           {{ player }}
         </RouterLink>
         <template v-else>{{ player }}</template>

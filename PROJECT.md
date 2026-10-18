@@ -81,8 +81,10 @@
 - 交互层次：导航当前项为**墨绿实心**；主操作按钮（如「加入游戏」）用 `type="primary"`，
   次操作用默认按钮（白底 + 强描边 + 微阴影），hover 浮起；玩家名等实体用墨绿文字链接；
   表格表头浅绿底 + 墨绿字。
-- 公共组件：`PlayerCell`（头像 + 名称 + SteamID64）、`RankBadge`（前 3 名金银铜名次徽章）；
-  表格列渲染用 `h()` 创建的类不会被 scoped CSS 命中，必须用组件或 `:deep()`。
+- 公共组件：`PlayerCell`（头像 + 名称 + SteamID64；名称默认链到资料页，`compact` 可隐藏
+  SteamID64/缩小头像）、`RankBadge`（前 3 名金银铜名次徽章）；表格列渲染用 `h()` 创建的类
+  不会被 scoped CSS 命中，必须用组件或 `:deep()`；Boolean prop 未传时 Vue 会转为 false，
+  需要默认 true 请用 `withDefaults`。
 - 地图/服务器缩略图必须提供缺图占位（显示地图名/图标）；Hero 使用极浅墨绿晕染，
   不做荧光/科技纹理。
 

@@ -10,6 +10,18 @@
 
 ---
 
+## 2026年10月19日 05时19分21秒 修复 PlayerCell 玩家名不跳转（Boolean prop 默认值陷阱）
+
+- 背景：地图详情 PRO/TP 榜点击玩家名没有跳转到个人资料。
+- 原因：`PlayerCell` 的 `link?: boolean` 是 Boolean 类型 prop，未传时 Vue 会将其转为 `false`
+  （不是 `undefined`），导致 `v-if="link !== false"` 不成立，名称渲染为纯文本；
+  封禁页等所有未传 `link` 的调用同样受影响。
+- 修复：改用 `withDefaults(defineProps<...>(), { link: true, compact: false })`，
+  模板改为 `v-if="link"`；`compact` 仍是可选。
+- 涉及文件：`frontend/src/components/PlayerCell.vue`、`PROJECT.md`、`CHANGELOG.md`。
+- 测试与结果（北京时间）：`npm run build` 通过；Playwright 验证：
+  地图详情点击玩家名跳转 `/profile/76561198325578948`；封禁页 20 个、排行榜 150 个玩家名均为链接。
+
 ## 2026年10月19日 01时17分28秒 排行榜隐藏 SteamID64；地图详情 PRO/TP 双列并排
 
 - 背景：用户要求（1）排行榜可点击玩家名进资料页、不显示 SteamID64；（2）地图详情 PRO/TP
