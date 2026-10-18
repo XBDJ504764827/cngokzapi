@@ -50,6 +50,7 @@ pub async fn scores(pool: &PgPool, steam_id: i64) -> Result<Vec<PlayerScoreEntry
            LEFT JOIN LATERAL (
                SELECT count(*) AS cnt FROM records
                WHERE player_steam_id = ps.player_steam_id AND mode = ps.mode
+                 AND points > 0
            ) r ON TRUE
            WHERE ps.player_steam_id = $1
            ORDER BY ps.mode"#,
@@ -99,7 +100,7 @@ pub async fn recent_records(
                   to_char(r.created_at, 'YYYY-MM-DD')    AS date
            FROM records r
            JOIN maps m ON m.id = r.map_id
-           WHERE r.player_steam_id = $1
+           WHERE r.player_steam_id = $1 AND r.points > 0
            ORDER BY r.created_at DESC
            LIMIT $2"#,
     )

@@ -10,6 +10,22 @@
 
 ---
 
+## 2026年10月19日 05时27分57秒 过滤无分成绩（最新记录 / 个人资料最近成绩）
+
+- 背景：最新记录与个人资料「最近成绩」中出现大量 0 分成绩（玩家未打破自己的记录 / 未进入计分范围，
+  上游给 0 分），用户要求这些不计分完成不再统计与展示。
+- 变更内容：
+  - `GET /api/v1/records`（最新记录）：SQL 增加 `AND r.points > 0`，只返回有分成绩。
+  - 个人资料：`recent_records` 增加 `AND r.points > 0`；「已同步成绩」计数（`player_scores` 子查询）
+    同样只 `count(*) ... AND points > 0`。
+  - 地图详情 PRO/TP 榜保持原样（仍可展示无分但最快的成绩，0 分显示「—」）。
+- 涉及文件：`backend/src/modules/records/repository.rs`、
+  `backend/src/modules/players/repository.rs`、`PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无迁移；两个只读接口的返回内容变更为仅含有分记录。
+- 测试与结果（北京时间）：`cargo fmt`/`cargo build`/`cargo clippy -D warnings` 通过；
+  实测 `/api/v1/records` 60 条中 0 分 = 0（最低 236 分）；
+  个人资料最近成绩 0 分 = 0，KZT 已同步成绩计数 186（仅计有分记录）。
+
 ## 2026年10月19日 05时19分21秒 修复 PlayerCell 玩家名不跳转（Boolean prop 默认值陷阱）
 
 - 背景：地图详情 PRO/TP 榜点击玩家名没有跳转到个人资料。

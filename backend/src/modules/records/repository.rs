@@ -29,7 +29,7 @@ SELECT p.name                              AS player,
 FROM records r
 JOIN players p ON p.steam_id = r.player_steam_id
 JOIN maps m ON m.id = r.map_id
-WHERE r.mode = $1 AND r.stage = 0
+WHERE r.mode = $1 AND r.stage = 0 AND r.points > 0
 ORDER BY r.created_at DESC
 LIMIT $2
 "#;
