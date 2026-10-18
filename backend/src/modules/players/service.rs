@@ -5,6 +5,7 @@ use super::{models::PlayerProfile, repository};
 use crate::{
     errors::AppError,
     modules::{mode, sync},
+    sources::{steam::Steam, SourceError},
     state::AppState,
 };
 
@@ -60,6 +61,128 @@ pub async fn profile(state: &AppState, raw: &str) -> Result<PlayerProfile, AppEr
     })
 }
 
+// ------------------------------ SteamID 解析 ------------------------------
+
+const STEAM64_BASE: i64 = 76_561_197_960_265_728;
+
+/// 个人主页链接解析结果。
+enum ProfileRef {
+    Id64(String),
+    Vanity(String),
+}
+
+fn is_steam64(s: &str) -> bool {
+    s.len() == 17 && s.chars().all(|c| c.is_ascii_digit())
+}
+
+/// `STEAM_X:Y:Z` → SteamID64（`base + Z*2 + Y`）。
+fn parse_steam2(s: &str) -> Option<String> {
+    let rest = s
+        .strip_prefix("STEAM_")
+        .or_else(|| s.strip_prefix("steam_"))?;
+    let mut parts = rest.split(':');
+    let _universe = parts.next()?;
+    let y: i64 = parts.next()?.parse().ok()?;
+    let z: i64 = parts.next()?.parse().ok()?;
+    if parts.next().is_some() || !(0..=1).contains(&y) || z < 0 {
+        return None;
+    }
+    Some((STEAM64_BASE + z * 2 + y).to_string())
+}
+
+/// `[U:1:W]` / `U:1:W` → SteamID64（`base + W`）。
+fn parse_steam3(s: &str) -> Option<String> {
+    let t = s.trim().trim_start_matches('[').trim_end_matches(']');
+    let account = t.strip_prefix("U:1:").or_else(|| t.strip_prefix("u:1:"))?;
+    let w: i64 = account.parse().ok()?;
+    if w < 0 {
+        return None;
+    }
+    Some((STEAM64_BASE + w).to_string())
+}
+
+/// 纯数字账号 id（1-10 位，SteamID3 数字形式）→ SteamID64。
+fn parse_account_id(s: &str) -> Option<String> {
+    if s.is_empty() || s.len() > 10 || !s.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    let w: i64 = s.parse().ok()?;
+    Some((STEAM64_BASE + w).to_string())
+}
+
+/// Steam 个人主页链接：`/profiles/<SteamID64>` 或 `/id/<自定义名>`。
+fn parse_profile_url(s: &str) -> Option<ProfileRef> {
+    let candidate = if s.starts_with("http://") || s.starts_with("https://") {
+        s.to_string()
+    } else {
+        format!("https://{s}")
+    };
+    let url = reqwest::Url::parse(&candidate).ok()?;
+    let host = url.host_str()?.to_ascii_lowercase();
+    if host != "steamcommunity.com" && !host.ends_with(".steamcommunity.com") {
+        return None;
+    }
+    let segments: Vec<&str> = url.path_segments()?.filter(|p| !p.is_empty()).collect();
+    match segments.as_slice() {
+        ["profiles", id] if is_steam64(id) => Some(ProfileRef::Id64((*id).to_string())),
+        ["id", vanity] if !vanity.is_empty() && vanity.len() <= 64 => {
+            Some(ProfileRef::Vanity((*vanity).to_string()))
+        }
+        _ => None,
+    }
+}
+
+fn source_error(e: SourceError) -> AppError {
+    match e {
+        SourceError::Rejected(_, m) | SourceError::Unavailable(m) | SourceError::Decode(m) => {
+            AppError::ServiceUnavailable(format!("Steam 查询失败：{m}"))
+        }
+    }
+}
+
+/// 将用户输入统一解析为 SteamID64（个人主页 `/id/xxx` 通过 Steam Web API 解析）。
+pub async fn resolve(state: &AppState, raw: &str) -> Result<String, AppError> {
+    let q = raw.trim();
+    if q.is_empty() {
+        return Err(AppError::BadRequest(
+            "请输入 SteamID / SteamID64 / Steam 个人主页链接".to_string(),
+        ));
+    }
+    if is_steam64(q) {
+        return Ok(q.to_string());
+    }
+    if let Some(id) = parse_steam2(q) {
+        return Ok(id);
+    }
+    if let Some(id) = parse_steam3(q) {
+        return Ok(id);
+    }
+    if let Some(id) = parse_account_id(q) {
+        return Ok(id);
+    }
+    match parse_profile_url(q) {
+        Some(ProfileRef::Id64(id)) => Ok(id),
+        Some(ProfileRef::Vanity(vanity)) => {
+            let key = state.config.steam_api_key.trim();
+            if key.is_empty() {
+                return Err(AppError::ServiceUnavailable(
+                    "未配置 STEAM_API_KEY，无法解析自定义主页链接".to_string(),
+                ));
+            }
+            let id = Steam(state.source.as_ref(), key)
+                .resolve_vanity(&vanity)
+                .await
+                .map_err(source_error)?;
+            id.ok_or_else(|| AppError::NotFound("未找到该 Steam 自定义主页".to_string()))
+        }
+        None => Err(AppError::BadRequest(
+            "无法识别的输入；支持 SteamID（STEAM_x:y:z）、SteamID3（[U:1:w]）、SteamID64、\
+             Steam 个人主页链接（/profiles/… 或 /id/…）"
+                .to_string(),
+        )),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -70,5 +193,31 @@ mod tests {
         assert!(parse_steam_id("123").is_err());
         assert!(parse_steam_id("7656119829741596a").is_err());
         assert!(parse_steam_id("").is_err());
+    }
+
+    #[test]
+    fn resolves_steam_id_formats() {
+        // Flonnych：STEAM_1:1:168575119 = 76561198297415967
+        assert_eq!(
+            parse_steam2("STEAM_1:1:168575119").as_deref(),
+            Some("76561198297415967")
+        );
+        assert_eq!(
+            parse_steam3("[U:1:337150239]").as_deref(),
+            Some("76561198297415967")
+        );
+        assert_eq!(
+            parse_account_id("337150239").as_deref(),
+            Some("76561198297415967")
+        );
+        assert!(matches!(
+            parse_profile_url("https://steamcommunity.com/profiles/76561198297415967"),
+            Some(ProfileRef::Id64(_))
+        ));
+        assert!(matches!(
+            parse_profile_url("steamcommunity.com/id/flonnych/"),
+            Some(ProfileRef::Vanity(_))
+        ));
+        assert!(parse_steam2("not-a-steamid").is_none());
     }
 }

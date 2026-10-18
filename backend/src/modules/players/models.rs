@@ -41,3 +41,9 @@ pub struct PlayerRecordEntry {
     pub points: i64,
     pub date: String,
 }
+
+/// 解析结果：统一为 SteamID64。
+#[derive(Serialize)]
+pub struct ResolvedPlayer {
+    pub steam_id64: String,
+}

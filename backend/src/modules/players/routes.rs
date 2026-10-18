@@ -4,5 +4,7 @@ use super::handlers;
 use crate::state::AppState;
 
 pub fn routes() -> Router<AppState> {
-    Router::new().route("/players/{steam_id}", get(handlers::profile))
+    Router::new()
+        .route("/players/resolve", get(handlers::resolve))
+        .route("/players/{steam_id}", get(handlers::profile))
 }

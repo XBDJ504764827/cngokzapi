@@ -6,6 +6,7 @@ const route = useRoute()
 
 const links = [
   { to: '/', label: '首页' },
+  { to: '/players', label: '玩家' },
   { to: '/leaderboard', label: '排行榜' },
   { to: '/maps', label: '地图' },
   { to: '/servers', label: '服务器' },

@@ -28,6 +28,20 @@ struct Resp {
     servers: Vec<ServerRow>,
 }
 
+/// `ResolveVanityURL` 响应（`success = 1` 才是有效 SteamID64）。
+#[derive(Debug, Deserialize)]
+struct VanityEnvelope {
+    response: VanityResp,
+}
+
+#[derive(Debug, Deserialize)]
+struct VanityResp {
+    #[serde(default)]
+    success: i32,
+    #[serde(default)]
+    steamid: Option<String>,
+}
+
 /// `GetServerList` 单条服务器（含实时人数、地图、gametype）。
 #[derive(Debug, Clone, Deserialize)]
 pub struct ServerRow {
@@ -91,5 +105,26 @@ impl Steam<'_> {
             }
         }
         Ok(out)
+    }
+
+    /// 自定义主页名（`steamcommunity.com/id/<vanity>`）→ SteamID64；不存在返回 None。
+    pub async fn resolve_vanity(&self, vanity: &str) -> Result<Option<String>, SourceError> {
+        if self.1.trim().is_empty() {
+            return Err(SourceError::Rejected(
+                401,
+                "未配置 STEAM_API_KEY，无法解析自定义主页链接".to_string(),
+            ));
+        }
+        let url = reqwest::Url::parse_with_params(
+            "https://api.steampowered.com/ISteamUser/ResolveVanityURL/v1/",
+            &[("key", self.1), ("vanityurl", vanity)],
+        )
+        .map_err(|e| SourceError::Decode(e.to_string()))?;
+        let env: VanityEnvelope = self.0.get_json(url.as_str()).await?;
+        Ok(if env.response.success == 1 {
+            env.response.steamid
+        } else {
+            None
+        })
     }
 }

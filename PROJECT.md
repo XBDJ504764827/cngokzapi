@@ -62,6 +62,9 @@
    超长玩家名/地图名省略号 + hover 全称。
    说明：KZTimer 只对每张地图/关卡前 1000 名计分，超出范围仍会记录但 `points=0`，
    前端将其展示为「未计分」（hover 有规则说明）。
+10. 玩家查询：导航「玩家」页，支持输入 SteamID（`STEAM_x:y:z`）、SteamID3（`[U:1:w]` / 纯数字账号 id）、
+    SteamID64、Steam 个人主页链接（`/profiles/…` 或 `/id/…`）；`/id/` 自定义名经 Steam Web API
+    `ResolveVanityURL` 解析，成功后退转到个人资料页。
 
 设计约束（必须保留）：
 
@@ -186,7 +189,7 @@ cngokzapi/
 │   │   ├── router/       # 路由及标题
 │   │   ├── layouts/      # 页面布局
 │   │   ├── components/   # 跨模块公共组件（PlayerCell、RankBadge）
-│   │   ├── features/     # home/leaderboard/records/servers/maps/profile/bans/auth
+│   │   ├── features/     # home/players/leaderboard/records/servers/maps/profile/bans/auth
 │   │   ├── services/     # http.ts 全站唯一 fetch 出口
 │   │   ├── stores/       # Pinia（app.currentMode，固定 KZT）
 │   │   ├── composables/  # useApi
@@ -273,6 +276,8 @@ JSON 一律 snake_case，与前后端类型一一对应。
     ip/port 仅供复制按钮，页面不渲染明文）
   - 服务器上报（§9.11）：`POST /api/v1/ingest/servers`（X-ApiKey，插件上报实时人数/地图/玩家，
     与 Steam 发现以 `(ip, port)` 合并，插件优先）
+  - 玩家解析：`GET /api/v1/players/resolve?q=`（SteamID / SteamID3 / SteamID64 / 个人主页链接 →
+    `{ steam_id64 }`；`/id/自定义名` 用 Steam Web API 解析）
   - 玩家：`GET /api/v1/players/{steam_id64}`（个人资料，首次访问触发后台同步；`recent_records`
     按模式各最多 20 条有分成绩，含 `map_id` 供地图图片/详情跳转）
   - 记录：`GET /api/v1/records`（含 `steam_id64` / `map_id`，供头像、资料页与地图详情跳转；
@@ -590,6 +595,9 @@ POST /api/v2.0/records                 X-ApiKey: <key>
 - 当前：个人资料最近成绩分组 + 地图缩略图（2026年10月19日，`develop`）：`PlayerRecordEntry` 增
   `map_id`；`recent_records` 改为按模式查询（每模式 20 条有分成绩）；页面重做为 KZT/SKZ/VNL
   三列，每条含地图缩略图/地图名（点击进 `/maps/:id`）/关卡/时间/分数/日期。
+- 当前：导航「玩家」查询（2026年10月19日，`develop`）：新增 `/players` 页与导航项，支持
+  SteamID/SteamID3/SteamID64/个人主页链接（含 `/id/` 自定义名经 Steam Web API 解析）；
+  后端 `GET /api/v1/players/resolve?q=` 统一返回 `steam_id64`，前端解析后跳转个人资料页。
 - 下一步（按序）：
   1. ~~旧阶段（vanilla 原型 + 单文件后端）~~ ✅ 已归档/替换
   2. ~~数据接入落地（§9）：`sources/` + `sync_jobs` + `scoring` + `0002/0003` + `ingest`；

@@ -1,10 +1,24 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     Json,
 };
 
-use super::{models::PlayerProfile, service};
+use super::{
+    dto::ResolveQuery,
+    models::{PlayerProfile, ResolvedPlayer},
+    service,
+};
 use crate::{errors::AppError, state::AppState};
+
+/// GET /api/v1/players/resolve?q=... —— 统一解析 SteamID / SteamID64 / 个人主页链接。
+pub async fn resolve(
+    State(state): State<AppState>,
+    Query(q): Query<ResolveQuery>,
+) -> Result<Json<ResolvedPlayer>, AppError> {
+    let raw = q.q.unwrap_or_default();
+    let steam_id64 = service::resolve(&state, &raw).await?;
+    Ok(Json(ResolvedPlayer { steam_id64 }))
+}
 
 /// GET /api/v1/players/{steam_id64} —— 个人资料（公开，首次访问触发后台同步）。
 pub async fn profile(

@@ -4,6 +4,7 @@ import type { RouteRecordRaw } from 'vue-router'
 
 const routes: RouteRecordRaw[] = [
   { path: '/', name: 'home', component: () => import('@/features/home/HomePage.vue'), meta: { title: '首页' } },
+  { path: '/players', name: 'players', component: () => import('@/features/players/PlayersPage.vue'), meta: { title: '玩家' } },
   { path: '/leaderboard', name: 'leaderboard', component: () => import('@/features/leaderboard/LeaderboardPage.vue'), meta: { title: '排行榜' } },
   { path: '/maps', name: 'maps', component: () => import('@/features/maps/MapsPage.vue'), meta: { title: '地图' } },
   { path: '/maps/:id', name: 'map-detail', component: () => import('@/features/maps/MapDetailPage.vue'), meta: { title: '地图详情' } },

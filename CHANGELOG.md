@@ -10,6 +10,25 @@
 
 ---
 
+## 2026年10月19日 05时42分54秒 导航新增「玩家」查询（多格式 SteamID 解析）
+
+- 背景：用户要求顶部导航新增玩家功能，可通过 SteamID / SteamID64 / Steam 个人主页链接查询玩家资料。
+- 变更内容：
+  - 后端新增 `GET /api/v1/players/resolve?q=`：支持 17 位 SteamID64、`STEAM_x:y:z`、`[U:1:w]` /
+    纯数字账号 id、`steamcommunity.com/profiles/<id>`、`/id/<vanity>`（后者用 Steam Web API
+    `ResolveVanityURL` + `STEAM_API_KEY`）；返回 `{ steam_id64 }`，非法输入 400 / 未找到 404。
+  - 前端新增 `/players` 页面与导航「玩家」入口：输入任意格式 → 解析 → 跳转 `/profile/:steamid64`；
+    个人资料页查询框也复用同一解析接口（不再只接受 17 位）。
+  - `sources/steam.rs` 新增 `resolve_vanity`；`players` 新增 `dto.rs` 与解析单测。
+- 涉及文件：`backend/src/modules/players/{dto,models,service,handlers,routes,mod}.rs`、
+  `backend/src/sources/steam.rs`、`frontend/src/features/players/{api.ts,PlayersPage.vue}`、
+  `frontend/src/router/index.ts`、`frontend/src/layouts/DefaultLayout.vue`、
+  `frontend/src/features/profile/ProfilePage.vue`、`PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无迁移；新增 `GET /api/v1/players/resolve`。
+- 测试与结果（北京时间）：`cargo fmt`/`build`/`clippy -D warnings`、`cargo test`（**29 passed**）、
+  `npm run build` 全过；实测 6 种输入均正确（含 `/id/gaben` → `76561197968052866`）；
+  Playwright 从 `/players` 提交 `STEAM_1:1:168575119` 跳转 `/profile/76561198297415967`，导航显示「玩家」。
+
 ## 2026年10月19日 05时33分32秒 个人资料最近成绩按模式分组 + 地图缩略图/详情跳转
 
 - 背景：个人资料「最近成绩」混合三种模式且无地图图片，不便于辨认；用户要求按模式分三类展示，

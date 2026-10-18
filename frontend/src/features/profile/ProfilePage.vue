@@ -9,6 +9,7 @@ import type { Mode } from '@/types/common'
 import { avatarUrl } from '@/utils/avatar'
 import { formatNumber } from '@/utils/format'
 import { mapImage } from '@/utils/mapImage'
+import { resolvePlayer } from '@/features/players/api'
 import { fetchProfile } from './api'
 import type { PlayerScoreEntry } from './types'
 
@@ -17,6 +18,8 @@ const router = useRouter()
 
 const steamId = computed(() => (route.params.steam_id as string | undefined) ?? '')
 const input = ref(steamId.value)
+const queryError = ref('')
+const resolving = ref(false)
 
 watch(steamId, (v) => (input.value = v))
 
@@ -45,10 +48,19 @@ onUnmounted(() => {
   if (timer) clearTimeout(timer)
 })
 
-function submit(): void {
-  const id = input.value.trim()
-  if (!/^\d{17}$/.test(id)) return
-  void router.push(`/profile/${id}`)
+async function submit(): Promise<void> {
+  const q = input.value.trim()
+  if (!q || resolving.value) return
+  queryError.value = ''
+  resolving.value = true
+  try {
+    const { steam_id64 } = await resolvePlayer(q)
+    void router.push(`/profile/${steam_id64}`)
+  } catch (e) {
+    queryError.value = e instanceof Error ? e.message : '查询失败，请检查输入'
+  } finally {
+    resolving.value = false
+  }
 }
 
 const scores = computed(() => data.value?.scores ?? [])
@@ -93,12 +105,13 @@ function onImageError(e: Event): void {
     <div class="toolbar">
       <NInput
         v-model:value="input"
-        placeholder="输入 SteamID64（17 位数字）"
-        style="max-width: 300px"
+        placeholder="SteamID / SteamID64 / Steam 个人主页链接"
+        style="max-width: 360px"
         @keyup.enter="submit"
       />
-      <NButton type="primary" @click="submit">查询</NButton>
+      <NButton type="primary" :loading="resolving" @click="submit">查询</NButton>
     </div>
+    <NAlert v-if="queryError" type="error" style="margin-bottom: 12px">{{ queryError }}</NAlert>
     <NAlert v-if="!steamId" type="info">
       直接访问 <code>/profile/&lt;SteamID64&gt;</code>，或点击排行榜 / 封禁名单 / 地图榜中的玩家名进入。
     </NAlert>
