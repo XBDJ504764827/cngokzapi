@@ -5,10 +5,31 @@
 
 格式约定：
 
-- 按日期倒序追加，标题为 `## YYYY-MM-DD 主题`。
+- 按日期倒序追加，标题为 `## YYYY-MM-DD-HH-mm-ss 主题`（2026-10-18 16:46 起启用；此前的历史条目沿用旧格式）。
 - 每条写清：背景 / 变更内容 / 涉及文件 / 数据库与 API 变化 / 测试与结果。
 
 ---
+
+## 2026-10-18-16-46-58 CHANGELOG 标题格式改为精确到秒
+
+- 背景：用户希望更精准地按日期与时间查询变更。
+- 变更：标题格式由 `## YYYY-MM-DD 主题` 改为 `## YYYY-MM-DD-HH-mm-ss 主题`；
+  本次及以后的新条目使用新格式，历史条目保留原样。
+- 涉及文件：`CHANGELOG.md`。
+
+## 2026-10-18-16-44-00 说明并优化「0 分」显示（KZTimer 前 1000 名计分）
+
+- 背景：最新记录中出现部分玩家完成地图后分数为 0，用户询问原因。
+- 结论：**不是 bug**。KZTimer 只对每张地图/关卡的前 1000 名计分，超出范围的完成仍会被记录，
+  但 `points = 0`；同一玩家更慢的非 PB 完成也常落在此范围。
+  实测验证：`fou` 于 `bkz_goldbhop_csgo` 本站记录 100.078s=0 分，其 PB 80.141s=786 分；
+  `kz_carp_v2` 前 1000 名最慢 59.65s，Green 的 74.164s/99.164s 在范围外。
+- 变更：最新记录的 0 分改显示为「未计分」（灰色，hover 说明规则）；
+  个人资料「最近成绩」与地图详情榜的单条 0 分显示为「—」。
+- 涉及文件：`frontend/src/features/records/RecordsPage.vue`、
+  `frontend/src/features/profile/ProfilePage.vue`、`frontend/src/features/maps/MapDetailPage.vue`、
+  `PROJECT.md`、`CHANGELOG.md`。
+- 测试与结果：`npm run build`（含 `vue-tsc -b`）通过。
 
 ## 2026-10-18 修复排行榜三模式列未对齐
 

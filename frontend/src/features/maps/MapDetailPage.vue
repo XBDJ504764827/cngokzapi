@@ -60,7 +60,7 @@ const columns: DataTableColumns<MapRecordEntry> = [
     render: (row) => h(PlayerCell, { player: row.player, steamId64: row.steam_id64, avatar: row.avatar }),
   },
   { title: '时间', key: 'time', width: 120, render: (row) => h('span', { class: 'mono' }, row.time) },
-  { title: '分数', key: 'points', width: 90, render: (row) => h('span', { class: 'mono' }, row.points) },
+  { title: '分数', key: 'points', width: 90, render: (row) => h('span', { class: 'mono' }, row.points > 0 ? row.points : '—') },
   { title: '日期', key: 'date', width: 120 },
 ]
 </script>

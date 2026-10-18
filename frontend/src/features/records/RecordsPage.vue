@@ -86,7 +86,13 @@ function onImageError(e: Event): void {
                   </RouterLink>
                 </span>
                 <span class="rec-meta">
-                  <span class="rec-points mono">{{ r.points }} 分</span>
+                  <span
+                    class="rec-points mono"
+                    :class="{ muted: r.points === 0 }"
+                    :title="r.points === 0 ? '该成绩未进入计分范围（KZTimer 仅对每张地图/关卡前 1000 名计分）' : '获取分数'"
+                  >
+                    {{ r.points > 0 ? `${r.points} 分` : '未计分' }}
+                  </span>
                   <span class="rec-dot">·</span>
                   <span class="rec-upload mono" :title="`上传于 ${r.created_at}`">
                     {{ formatDateTimeShort(r.created_at) }}
@@ -255,6 +261,11 @@ function onImageError(e: Event): void {
 .rec-points {
   color: #8a6a2f;
   font-weight: 700;
+}
+
+.rec-points.muted {
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
 .rec-dot {

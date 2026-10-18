@@ -70,7 +70,7 @@ const recordColumns: DataTableColumns<PlayerRecordEntry> = [
   { title: '模式', key: 'mode', width: 80 },
   { title: '关卡', key: 'stage', width: 70, render: (r) => (r.stage === 0 ? '主关' : `B${r.stage}`) },
   { title: '时间', key: 'time', width: 120, render: (r) => h('span', { class: 'mono' }, r.time) },
-  { title: '分数', key: 'points', width: 90 },
+  { title: '分数', key: 'points', width: 90, render: (r) => (r.points > 0 ? r.points : '—') },
   { title: '日期', key: 'date', width: 120 },
 ]
 </script>
