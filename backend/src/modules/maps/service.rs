@@ -2,7 +2,7 @@
 
 use super::{
     dto::MapsQuery,
-    models::{MapDetail, MapSummary},
+    models::{MapDetail, MapSummary, ModeBoard},
     repository,
 };
 use crate::{
@@ -25,33 +25,46 @@ pub async fn list(state: &AppState, q: MapsQuery) -> Result<Vec<MapSummary>, App
     Ok(repository::list_maps(&state.db, &query, tier, &m).await?)
 }
 
-/// 地图详情；`syncing` 为真表示整图同步尚未完成（已入队，稍后重试可见完整成绩）。
-pub async fn detail(state: &AppState, id: i64, m: Option<&str>) -> Result<MapDetail, AppError> {
-    let m = mode::validate(m)?;
+/// 地图详情：返回三模式各自的主关 PRO/TP 榜；任一模式未同步时入队并置 `syncing`。
+pub async fn detail(state: &AppState, id: i64) -> Result<MapDetail, AppError> {
     let mut map = repository::get_map(&state.db, id)
         .await?
         .ok_or_else(|| AppError::NotFound("地图不存在".to_string()))?;
 
-    // 整图同步是否已完成（按 sync_jobs 的 done 状态判断，避免「导入过部分成绩就以为齐了」）
-    let job_key = format!("{}|{}", map.name, m);
-    let synced = sync::queue::is_done(&state.db, sync::KIND_MAP, &job_key).await?;
-    if !synced {
-        sync::worker::enqueue_map(state, &map.name, m).await;
+    let mut syncing = false;
+    let mut boards = Vec::with_capacity(mode::MODES.len());
+    for m in mode::MODES {
+        // 整图同步是否已完成（按 sync_jobs 的 done 状态判断，避免「导入过部分成绩就以为齐了」）
+        let job_key = format!("{}|{}", map.name, m);
+        let synced = sync::queue::is_done(&state.db, sync::KIND_MAP, &job_key).await?;
+        if !synced {
+            sync::worker::enqueue_map(state, &map.name, m).await;
+            syncing = true;
+        }
+
+        let pro = repository::board_records(&state.db, map.id, m, true, TOP_LIMIT).await?;
+        let tp = repository::board_records(&state.db, map.id, m, false, TOP_LIMIT).await?;
+        boards.push(ModeBoard {
+            mode: m.to_string(),
+            wr_pro: pro.first().cloned(),
+            wr_tp: tp.first().cloned(),
+            pro,
+            tp,
+        });
     }
 
-    let records = repository::top_records(&state.db, map.id, m, TOP_LIMIT).await?;
-
-    // WR = 主关榜第一名，直接复用避免重复查询
-    if let Some(first) = records.first() {
-        map.wr_player = Some(first.player.clone());
-        map.wr_time = Some(first.time.clone());
-        map.wr_date = Some(first.date.clone());
+    // 列表页的 wr_* 字段沿用：取 KZT 的 TP 最快成绩
+    if let Some(kzt) = boards.iter().find(|b| b.mode == "KZT") {
+        if let Some(wr) = &kzt.wr_tp {
+            map.wr_player = Some(wr.player.clone());
+            map.wr_time = Some(wr.time.clone());
+            map.wr_date = wr.created_at.get(..10).map(str::to_string);
+        }
     }
 
     Ok(MapDetail {
         map,
-        mode: m.to_string(),
-        records,
-        syncing: !synced,
+        boards,
+        syncing,
     })
 }

@@ -4,7 +4,7 @@ use axum::{
 };
 
 use super::{
-    dto::{MapDetailQuery, MapsQuery},
+    dto::MapsQuery,
     models::{MapDetail, MapSummary},
     service,
 };
@@ -18,11 +18,10 @@ pub async fn list(
     Ok(Json(service::list(&state, q).await?))
 }
 
-/// GET /api/v1/maps/{id}?mode=KZT —— 地图详情 + 该模式主关榜（公开）。
+/// GET /api/v1/maps/{id} —— 地图详情 + 三模式主关 PRO/TP 榜（公开）。
 pub async fn detail(
     State(state): State<AppState>,
     Path(id): Path<i64>,
-    Query(q): Query<MapDetailQuery>,
 ) -> Result<Json<MapDetail>, AppError> {
-    Ok(Json(service::detail(&state, id, q.mode.as_deref()).await?))
+    Ok(Json(service::detail(&state, id).await?))
 }

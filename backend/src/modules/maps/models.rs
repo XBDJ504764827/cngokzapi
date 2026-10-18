@@ -24,24 +24,37 @@ pub struct MapSummary {
     pub wr_date: Option<String>,
 }
 
-/// 地图榜条目（同一玩家取最佳成绩）。
+/// 地图榜条目（同一玩家在该分类下取最佳成绩）。
 #[derive(Clone, Serialize)]
 pub struct MapRecordEntry {
     pub rank: u32,
     pub player: String,
     pub steam_id64: String,
     pub avatar: String,
+    /// 完成耗时（`M:SS.mmm`）。
     pub time: String,
     pub points: i64,
-    pub date: String,
+    /// 存读点次数（PRO 恒为 0）。
+    pub teleports: i32,
+    /// 记录上传时间（UTC ISO8601）。
+    pub created_at: String,
 }
 
-/// 地图详情：地图信息 + 指定模式的成绩榜。
+/// 单模式的两张榜：PRO = 无存读点，TP = 有存读点。
+#[derive(Clone, Serialize)]
+pub struct ModeBoard {
+    pub mode: String,
+    pub wr_pro: Option<MapRecordEntry>,
+    pub wr_tp: Option<MapRecordEntry>,
+    pub pro: Vec<MapRecordEntry>,
+    pub tp: Vec<MapRecordEntry>,
+}
+
+/// 地图详情：地图信息 + 三模式各自的 PRO/TP 榜。
 #[derive(Serialize)]
 pub struct MapDetail {
     pub map: MapSummary,
-    pub mode: String,
-    pub records: Vec<MapRecordEntry>,
-    /// 本地暂无该图该模式成绩，已入队后台同步。
+    pub boards: Vec<ModeBoard>,
+    /// 任一模式整图同步尚未完成（已入队，稍后重试可见完整成绩）。
     pub syncing: bool,
 }

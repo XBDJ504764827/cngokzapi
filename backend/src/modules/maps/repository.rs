@@ -105,14 +105,17 @@ struct RecordRow {
     avatar: Option<String>,
     time_ms: i32,
     points: i32,
-    date: String,
+    teleports: i32,
+    created_at: String,
 }
 
-/// 地图主关榜：同一玩家取最佳成绩，按时间升序。
-pub async fn top_records(
+/// 地图主关榜：`pro = true` 取无存读点（`teleports = 0`），否则取有存读点（`teleports > 0`）。
+/// 同一玩家在该分类下取最佳成绩，按时间升序。
+pub async fn board_records(
     pool: &PgPool,
     map_id: i64,
     mode: &str,
+    pro: bool,
     limit: i64,
 ) -> Result<Vec<MapRecordEntry>, sqlx::Error> {
     let rows: Vec<RecordRow> = sqlx::query_as(
@@ -121,20 +124,24 @@ pub async fn top_records(
                   p.avatar_url                            AS avatar,
                   b.time_ms                               AS time_ms,
                   b.points                                AS points,
-                  to_char(b.created_at, 'YYYY-MM-DD')      AS date
+                  b.teleports                             AS teleports,
+                  to_char(b.created_at AT TIME ZONE 'UTC',
+                          'YYYY-MM-DD"T"HH24:MI:SS"Z"')      AS created_at
            FROM (
                 SELECT DISTINCT ON (r.player_steam_id)
-                       r.player_steam_id, r.time_ms, r.points, r.created_at
+                       r.player_steam_id, r.time_ms, r.points, r.teleports, r.created_at
                 FROM records r
                 WHERE r.map_id = $1 AND r.mode = $2 AND r.stage = 0 AND r.is_valid
+                  AND (($3 AND r.teleports = 0) OR (NOT $3 AND r.teleports > 0))
                 ORDER BY r.player_steam_id, r.time_ms ASC
            ) b
            JOIN players p ON p.steam_id = b.player_steam_id
            ORDER BY b.time_ms ASC
-           LIMIT $3"#,
+           LIMIT $4"#,
     )
     .bind(map_id)
     .bind(mode)
+    .bind(pro)
     .bind(limit)
     .fetch_all(pool)
     .await?;
@@ -149,7 +156,8 @@ pub async fn top_records(
             avatar: r.avatar.unwrap_or_default(),
             time: format_duration_ms(r.time_ms),
             points: i64::from(r.points),
-            date: r.date,
+            teleports: r.teleports,
+            created_at: r.created_at,
         })
         .collect())
 }

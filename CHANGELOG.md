@@ -10,6 +10,29 @@
 
 ---
 
+## 2026年10月19日 01时07分29秒 地图详情页改版：三模式 PRO/TP 榜 + 大图/等级/制作人/最快时间
+
+- 背景：删除全局模式切换后，地图详情默认只能看 KZT；用户要求三模式都可查看并重新设计，
+  硬性要求：大图、KZT/SKZ/VNL 等级、制作人、最快时间（PRO/TP）、前 100 名头像/名称/完成时间/
+  分数/上传时间、PRO/TP 排行榜、TP 存读点数量。
+- 变更内容：
+  - 后端 `modules/maps`：`MapRecordEntry` 增 `teleports` / `created_at`（上传时间）；新增 `ModeBoard`；
+    `MapDetail` 改为 `{ map, boards[], syncing }`，一次返回 KZT/SKZ/VNL 三模式。
+    `board_records` 按 `(map_id, mode, stage=0, is_valid)` + `teleports=0`（PRO）/`>0`（TP）分榜，
+    同一玩家在各自分类取最佳、前 100；`GET /api/v1/maps/{id}` 不再需要 `mode` 参数，
+    首次访问对未同步模式入队。
+  - 前端 `MapDetailPage` 重做：大图 + 名称/工坊/制作人/大小/Bonus + 三模式等级 chips；
+    「三模式最快完成」同时展示 PRO/TP；页内 KZT/SKZ/VNL 切换；PRO/TP 两张全宽排行榜
+    （排名徽章、头像、名称、完成时间、分数、上传时间，TP 多一列存读点），上下堆叠避免截断。
+  - `utils/format` 新增 `formatDateTime`（带年份），地图详情上传时间使用。
+- 涉及文件：`backend/src/modules/maps/{models,repository,service,handlers,dto}.rs`、
+  `frontend/src/features/maps/{types.ts,api.ts,MapDetailPage.vue}`、`frontend/src/utils/format.ts`、
+  `PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无迁移；`GET /api/v1/maps/{id}` 响应改为 `{ map, boards, syncing }`（breaking）。
+- 测试与结果（北京时间）：`cargo clippy -D warnings`、`cargo test`（28 passed）、`npm run build` 全过；
+  实测 `kz_catalyst_gfix` 三模式 PRO/TP 均有数据、TP#1 含存读点与上传时间；
+  截图确认大图/等级/制作人/最快时间/两榜列完整显示。
+
 ## 2026年10月19日 00时48分37秒 CHANGELOG 标题格式改为「YYYY年MM月DD日 HH时mm分ss秒 主题」
 
 - 背景：用户希望更精准地按日期与时间查询变更，并指定中文时间格式。

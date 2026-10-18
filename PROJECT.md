@@ -36,7 +36,10 @@
    地图名称、制作人、难度徽章、是否有奖励关（Bonus ×N / 无 Bonus），
    并显示当前模式主关 WR（记录人 + 耗时 + 日期）；每页 24 张分页。图片走 `utils/mapImage.ts`
    统一出口（当前用 KZGlobalTeam 公开图库，后续可换自建图床）。
-4. 地图详情：单个地图信息 + 前 100 名排行。
+4. 地图详情：**大图** + 地图名 / 制作人 / KZT·SKZ·VNL 三模式等级 / 文件大小 / Bonus / 创意工坊；
+   顶部「三模式最快完成」同时展示 PRO（无存读点）与 TP（有存读点）；
+   页内 KZT/SKZ/VNL 切换，每个模式展示两张主关前 100 榜：PRO 与 TP；
+   每条含头像、名称、完成时间、分数、上传时间，TP 榜额外显示存读点次数。
 5. 服务器列表：全部在线服务器详细信息，提供**两种视图切换**——卡片排列（grid，**默认**）与
    列状排列（list）；两种视图都显示当前地图图片、地图名、难度与区域、人数、社区标签、
    在线玩家昵称标签。支持**按社区分类筛选**（后端 `servers/category.rs` 归一化：优先 `group_name`，
@@ -259,7 +262,7 @@ JSON 一律 snake_case，与前后端类型一一对应。
   - 封禁：`GET /api/v1/bans?query=&page=&per_page=`（分页信封）
   - 地图：`GET /api/v1/maps?query=&tier=&mode=`（返回含 `mappers` / 三模式 tier / `bonuses` /
     当前模式 WR `wr_player`·`wr_time`·`wr_date`）、
-    `GET /api/v1/maps/{id}?mode=KZT`（详情含主关前 100 与 `syncing` 标记）
+    `GET /api/v1/maps/{id}`（详情含三模式各自 PRO/TP 前 100、最快成绩与 `syncing` 标记）
   - 服务器：`GET /api/v1/servers`（仅在线 KZ CS 服；含 `map_tier` / `player_names` / `category` / `source`；
     ip/port 仅供复制按钮，页面不渲染明文）
   - 服务器上报（§9.11）：`POST /api/v1/ingest/servers`（X-ApiKey，插件上报实时人数/地图/玩家，
@@ -570,6 +573,11 @@ POST /api/v2.0/records                 X-ApiKey: <key>
   切换按钮，`stores/app.ts` 简化为固定 `currentMode='KZT'`（仅地图页使用）；排行榜改为一次拉取
   三模式、**KZT / SKZ / VNL 三列同页并排**（每列前 50 名），行内两行式展示名次/头像/玩家/总分/
   图数/记录数/均分/最近游玩，搜索与筛选排序同时作用于三列；`npm run build` 通过，1440 截图核对。
+- 当前：地图详情改版（2026年10月19日，`develop`）：`GET /api/v1/maps/{id}` 改为一次返回三模式
+  各自的 PRO/TP 前 100（按 `(地图, 关卡, 模式, teleports=0/>0)` 分榜）+ 上传时间/存读点；
+  页面重做为「大图 + 三模式等级/制作人/大小/Bonus/工坊 + 三模式最快完成（PRO/TP）+ 页内模式切换
+  + PRO/TP 两张全宽排行榜」；TP 表增「存读点」列，上传时间带年份；堆叠布局避免截断。
+  实测 `kz_catalyst_gfix` 三模式 PRO/TP 均有数据，`kz_apricity_v3` 本身只有 KZT 数据（非 bug）。
 - 下一步（按序）：
   1. ~~旧阶段（vanilla 原型 + 单文件后端）~~ ✅ 已归档/替换
   2. ~~数据接入落地（§9）：`sources/` + `sync_jobs` + `scoring` + `0002/0003` + `ingest`；

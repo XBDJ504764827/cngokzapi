@@ -17,6 +17,6 @@ export function fetchMaps(params: MapListParams = {}): Promise<MapSummary[]> {
   return http.get<MapSummary[]>(`/maps${s ? `?${s}` : ''}`)
 }
 
-export function fetchMapDetail(id: number, mode: string): Promise<MapDetail> {
-  return http.get<MapDetail>(`/maps/${id}?mode=${mode}`)
+export function fetchMapDetail(id: number): Promise<MapDetail> {
+  return http.get<MapDetail>(`/maps/${id}`)
 }

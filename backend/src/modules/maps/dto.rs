@@ -9,9 +9,3 @@ pub struct MapsQuery {
     pub tier: Option<i16>,
     pub mode: Option<String>,
 }
-
-/// GET /api/v1/maps/{id}?mode=KZT —— 详情按模式取榜。
-#[derive(Deserialize)]
-pub struct MapDetailQuery {
-    pub mode: Option<String>,
-}
