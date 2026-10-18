@@ -147,6 +147,11 @@ const columns = computed(() =>
   align-items: start;
 }
 
+/* 三列并排时取消全局「相邻面板上间距」，否则第 2/3 列会整体下沉 16px */
+.lb-panel + .lb-panel {
+  margin-top: 0;
+}
+
 .lb-head {
   display: flex;
   align-items: center;
