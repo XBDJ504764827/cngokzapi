@@ -33,6 +33,7 @@ const columns: DataTableColumns<BanEntry> = [
   {
     title: '玩家',
     key: 'player',
+    width: 240,
     render: (row) =>
       h(PlayerCell, {
         player: row.player,
@@ -46,8 +47,8 @@ const columns: DataTableColumns<BanEntry> = [
     width: 150,
     render: (row) => h('span', { class: 'ban-reason' }, row.reason),
   },
-  { title: '封禁时间', key: 'banned_at', width: 120 },
-  { title: '封禁服务器', key: 'server', width: 220 },
+  { title: '封禁时间', key: 'banned_at', width: 120, render: (row) => h('span', { class: 'mono' }, row.banned_at) },
+  { title: '封禁服务器', key: 'server', width: 220, ellipsis: { tooltip: true } },
   {
     title: '详细数据',
     key: 'detail',
@@ -57,67 +58,55 @@ const columns: DataTableColumns<BanEntry> = [
 </script>
 
 <template>
-  <div class="page-head leaderboard-head">
+  <div class="page-head page-head-row">
     <div>
       <h1 class="page-title">封禁名单</h1>
       <p class="page-sub">作弊玩家公示：历史成绩保留，但不再参与排名</p>
     </div>
-    <NTag type="success" size="medium">{{ countText }}</NTag>
+    <div class="page-head-actions">
+      <NTag type="success" size="medium">{{ countText }}</NTag>
+    </div>
   </div>
 
   <div class="toolbar">
-    <NInput v-model:value="query" placeholder="搜索玩家名称 / SteamID64..." clearable style="max-width: 300px" />
+    <NInput v-model:value="query" placeholder="搜索玩家名称 / SteamID64..." clearable style="max-width: 320px" />
   </div>
 
-  <NSpin :show="loading">
-    <NAlert v-if="error" type="error" style="margin-bottom: 12px">{{ error }}</NAlert>
-    <NEmpty
-      v-else-if="!loading && rows.length === 0"
-      description="暂无封禁记录"
-      style="padding: 40px 0"
-    />
-    <NDataTable :columns="columns" :data="rows" :pagination="false" />
-    <div v-if="pageCount > 1" class="pager">
-      <NPagination v-model:page="page" :page-count="pageCount" :page-size="PAGE_SIZE" :page-sizes="[]" />
-      <span class="page-info">第 {{ page }} / {{ pageCount }} 页</span>
+  <div class="panel">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title">封禁记录</div>
+        <div class="panel-sub">数据来自上游封禁同步 · 每页 {{ PAGE_SIZE }} 条</div>
+      </div>
     </div>
-  </NSpin>
+
+    <NSpin :show="loading">
+      <NAlert v-if="error" type="error" style="margin: 16px 20px 0">{{ error }}</NAlert>
+      <NEmpty
+        v-else-if="!loading && rows.length === 0"
+        description="暂无封禁记录"
+        style="padding: 48px 0"
+      />
+      <NDataTable v-else :columns="columns" :data="rows" :pagination="false" />
+    </NSpin>
+  </div>
+
+  <div v-if="pageCount > 1" class="pager">
+    <NPagination v-model:page="page" :page-count="pageCount" :page-size="PAGE_SIZE" :page-sizes="[]" />
+    <span class="page-info">第 {{ page }} / {{ pageCount }} 页</span>
+  </div>
 </template>
 
 <style scoped>
-.leaderboard-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.lb-player {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.lb-name {
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-.lb-steam {
-  font-size: 12px;
-  color: var(--text-muted);
-  font-family: 'SF Mono', 'Courier New', monospace;
-}
-
-.ban-reason {
+:deep(.ban-reason) {
   font-weight: 600;
   color: var(--danger);
 }
 
-.ban-detail {
+:deep(.ban-detail) {
   font-size: 12px;
   color: var(--text-secondary);
-  font-family: 'SF Mono', 'Courier New', monospace;
+  font-family: var(--font-mono);
 }
 
 .pager {

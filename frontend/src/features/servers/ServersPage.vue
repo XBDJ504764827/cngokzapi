@@ -52,46 +52,66 @@ function region(server: ServerEntry): string {
       <h1 class="page-title">服务器列表</h1>
       <p class="page-sub">地址仅经「复制 IP」获取，页面不渲染明文</p>
     </div>
-    <div class="view-switcher">
-      <button class="view-btn" :class="{ active: view === 'grid' }" title="卡片排列" @click="view = 'grid'">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="7" height="7" />
-          <rect x="14" y="3" width="7" height="7" />
-          <rect x="3" y="14" width="7" height="7" />
-          <rect x="14" y="14" width="7" height="7" />
-        </svg>
-      </button>
-      <button class="view-btn" :class="{ active: view === 'list' }" title="列状排列" @click="view = 'list'">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="8" y1="6" x2="21" y2="6" />
-          <line x1="8" y1="12" x2="21" y2="12" />
-          <line x1="8" y1="18" x2="21" y2="18" />
-          <line x1="3" y1="6" x2="3.01" y2="6" />
-          <line x1="3" y1="12" x2="3.01" y2="12" />
-          <line x1="3" y1="18" x2="3.01" y2="18" />
-        </svg>
-      </button>
+    <div class="page-head-actions">
+      <NTag type="success" size="medium">在线 {{ rows.length }} 台</NTag>
+      <div class="view-switcher">
+        <button class="view-btn" :class="{ active: view === 'grid' }" title="卡片排列" @click="view = 'grid'">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" />
+            <rect x="14" y="3" width="7" height="7" />
+            <rect x="3" y="14" width="7" height="7" />
+            <rect x="14" y="14" width="7" height="7" />
+          </svg>
+        </button>
+        <button class="view-btn" :class="{ active: view === 'list' }" title="列状排列" @click="view = 'list'">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="8" y1="6" x2="21" y2="6" />
+            <line x1="8" y1="12" x2="21" y2="12" />
+            <line x1="8" y1="18" x2="21" y2="18" />
+            <line x1="3" y1="6" x2="3.01" y2="6" />
+            <line x1="3" y1="12" x2="3.01" y2="12" />
+            <line x1="3" y1="18" x2="3.01" y2="18" />
+          </svg>
+        </button>
+      </div>
     </div>
   </div>
 
   <div class="toolbar">
-    <NInput v-model:value="query" placeholder="搜索服务器名 / 地图 / 社区..." clearable style="max-width: 300px" />
-    <NTag type="success" size="medium">在线 {{ rows.length }} 台</NTag>
+    <NInput v-model:value="query" placeholder="搜索服务器名 / 地图 / 社区..." clearable style="max-width: 320px" />
   </div>
 
   <NSpin :show="loading">
     <NAlert v-if="error" type="error" style="margin-bottom: 12px">{{ error }}</NAlert>
-    <NEmpty v-else-if="!loading && !rows.length" description="暂无在线服务器数据" style="padding: 40px 0" />
+    <NEmpty v-else-if="!loading && !rows.length" description="暂无在线服务器数据" style="padding: 48px 0" />
 
     <!-- 卡片排列 -->
     <div v-else-if="view === 'grid'" class="servers-grid">
-      <div v-for="s in rows" :key="s.id" class="server-card-grid">
+      <div v-for="s in rows" :key="s.id" class="server-card-grid hover-lift">
         <div class="server-map-preview">
+          <div class="thumb-fallback">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3Zm0 0v15m6-12v15" />
+            </svg>
+            <span>{{ s.map || '未知地图' }}</span>
+          </div>
           <img :src="mapImage(s.map)" :alt="s.map" loading="lazy" @error="onImageError" />
           <div class="server-status-badge"><span class="status-dot" /> 在线</div>
         </div>
         <div class="server-card-content">
-          <h3 class="server-name" :title="s.name">{{ s.name }}</h3>
+          <div class="server-card-head">
+            <h3 class="server-name" :title="s.name">{{ s.name }}</h3>
+            <span class="server-count mono">{{ s.player_count }}/{{ s.max_players }}</span>
+          </div>
           <div class="server-info-row">
             <span class="server-info-label">当前地图</span>
             <span class="server-info-value" :title="s.map">{{ s.map || '—' }}</span>
@@ -101,10 +121,6 @@ function region(server: ServerEntry): string {
             <span class="server-info-value">
               {{ s.map_tier > 0 ? `Tier ${s.map_tier}` : 'Tier —' }} · {{ region(s) }}
             </span>
-          </div>
-          <div class="server-info-row">
-            <span class="server-info-label">玩家</span>
-            <span class="server-info-value">{{ s.player_count }}/{{ s.max_players }}</span>
           </div>
           <div class="server-players">
             <div class="server-players-title">在线玩家</div>
@@ -124,25 +140,39 @@ function region(server: ServerEntry): string {
     <div v-else class="servers-list">
       <div v-for="s in rows" :key="s.id" class="server-card-list">
         <div class="server-list-preview">
+          <div class="thumb-fallback small">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3Zm0 0v15m6-12v15" />
+            </svg>
+          </div>
           <img :src="mapImage(s.map, 'thumbnails')" :alt="s.map" loading="lazy" @error="onImageError" />
           <div class="server-status-badge"><span class="status-dot" /> 在线</div>
         </div>
         <div class="server-list-info">
           <h3 class="server-name" :title="s.name">{{ s.name }}</h3>
           <div class="server-meta">
-            <span :title="s.map">{{ s.map || '—' }}</span>
-            <span>·</span>
+            <span class="meta-strong" :title="s.map">{{ s.map || '—' }}</span>
+            <span class="meta-sep">·</span>
             <span>{{ s.map_tier > 0 ? `Tier ${s.map_tier}` : 'Tier —' }}</span>
-            <span>·</span>
+            <span class="meta-sep">·</span>
             <span>{{ region(s) }}</span>
-            <span>·</span>
-            <span>{{ s.player_count }}/{{ s.max_players }} 玩家</span>
           </div>
           <div class="server-players-list">
             <span v-for="p in s.player_names" :key="p" class="player-chip">{{ p }}</span>
+            <span v-if="!s.player_names.length" class="player-chip empty">暂无玩家</span>
           </div>
         </div>
         <div class="server-list-actions">
+          <span class="server-count mono">{{ s.player_count }}/{{ s.max_players }}</span>
           <NButton size="small" @click="copyAddress(s.ip, s.port)">复制 IP</NButton>
         </div>
       </div>
@@ -151,29 +181,25 @@ function region(server: ServerEntry): string {
 </template>
 
 <style scoped>
-.page-head-row {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-}
-
 .view-switcher {
   display: flex;
   gap: 4px;
 }
 
 .view-btn {
-  padding: 8px;
-  background-color: transparent;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  color: var(--text-muted);
-  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
+  padding: 7px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .view-btn:hover {
@@ -187,6 +213,35 @@ function region(server: ServerEntry): string {
   color: #fff;
 }
 
+/* 缩略图兜底：上游缺图时显示地图名 / 图标，不留灰块 */
+.thumb-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 14px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.thumb-fallback span {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.thumb-fallback.small {
+  flex-direction: row;
+}
+
+.thumb-fallback.small span {
+  display: none;
+}
+
 /* ---------- 卡片排列 ---------- */
 .servers-grid {
   display: grid;
@@ -197,29 +252,29 @@ function region(server: ServerEntry): string {
 .server-card-grid {
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   overflow: hidden;
-  transition: all 0.2s ease;
-}
-
-.server-card-grid:hover {
-  border-color: var(--accent);
-  box-shadow: 0 4px 16px rgba(28, 28, 26, 0.06);
 }
 
 .server-map-preview {
   position: relative;
   width: 100%;
-  height: 180px;
+  height: 170px;
   background-color: var(--bg-subtle);
   overflow: hidden;
 }
 
 .server-map-preview img {
+  position: relative;
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform 0.35s ease;
+}
+
+.server-card-grid:hover .server-map-preview img {
+  transform: scale(1.04);
 }
 
 .server-status-badge {
@@ -231,30 +286,46 @@ function region(server: ServerEntry): string {
   gap: 5px;
   padding: 4px 12px;
   background-color: rgba(255, 255, 255, 0.95);
-  border-radius: 12px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-sm);
   font-size: 12px;
   font-weight: 600;
-  color: #4c8f6b;
+  color: var(--tier-easy);
 }
 
 .status-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: #4c8f6b;
+  background-color: var(--tier-easy);
+  box-shadow: 0 0 0 3px rgba(76, 143, 107, 0.16);
 }
 
 .server-card-content {
-  padding: 18px;
+  padding: 16px 18px 18px;
+}
+
+.server-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .server-name {
   font-size: 16px;
   font-weight: 600;
-  margin-bottom: 12px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.server-count {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
 }
 
 .server-info-row {
@@ -296,7 +367,7 @@ function region(server: ServerEntry): string {
 .player-chip {
   padding: 2px 8px;
   background-color: var(--bg-subtle);
-  border-radius: 10px;
+  border-radius: 999px;
   font-size: 12px;
   color: var(--text-secondary);
 }
@@ -324,13 +395,16 @@ function region(server: ServerEntry): string {
   gap: 16px;
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 12px;
-  transition: all 0.2s ease;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
 .server-card-list:hover {
   border-color: var(--accent);
+  box-shadow: var(--shadow-sm);
 }
 
 .server-list-preview {
@@ -338,12 +412,13 @@ function region(server: ServerEntry): string {
   flex-shrink: 0;
   width: 120px;
   height: 68px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background-color: var(--bg-subtle);
   overflow: hidden;
 }
 
 .server-list-preview img {
+  position: relative;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -365,13 +440,31 @@ function region(server: ServerEntry): string {
 .server-meta {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
   font-size: 13px;
   color: var(--text-muted);
   margin-bottom: 6px;
 }
 
+.meta-strong {
+  max-width: 320px;
+  color: var(--text-primary);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta-sep {
+  color: var(--border-strong);
+}
+
 .server-list-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
   flex-shrink: 0;
 }
 
@@ -384,6 +477,12 @@ function region(server: ServerEntry): string {
   .server-list-preview {
     width: 100%;
     height: 140px;
+  }
+
+  .server-list-actions {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
   }
 }
 </style>

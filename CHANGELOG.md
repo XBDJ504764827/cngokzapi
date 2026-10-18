@@ -10,6 +10,54 @@
 
 ---
 
+## 2026-10-17 全站视觉优化：面板体系 / 首页 Hero / 详情英雄区 / 名次徽章
+
+- 背景：用户反馈"当前页面有点简约单调了，你来操刀优化一下"。要求保持 PROJECT §2 设计约束
+  （白底 + 单一墨绿主色、细边框、克制干净、不做科技感/竞技风），在现有页面结构不变的前提下提升
+  信息层次与视觉质感；纯前端改动。
+- 变更内容：
+  - 设计系统（`styles/global.css` + `app/theme.ts`）：新增 token（`--accent-wash`、
+    `--radius-card`、`--shadow-lg`、`--tier-severe`、`--font-mono`）、键盘 `:focus-visible` 描边；
+    新增 `.page-head-row`/`.page-head-actions`/`.page-eyebrow`、`.panel/.panel-head/.panel-body`
+    面板体系、`.chip`、`.hover-lift`、`.fade-in` 与 `prefers-reduced-motion` 适配；
+    表格表头浅底、行 hover、区块标题墨绿竖条；`theme.ts` 补小卡片内边距与 Alert 圆角。
+  - 导航/布局：logo 改墨绿方块 KZ 标识（首页可点），Steam 登录按钮加 Steam 图标，
+    吸顶栏加细阴影；600px 下 Steam 按钮只留图标，保证链接永不重叠；路由切换加极轻淡入；
+    底部栏保持原有紧凑高度。
+  - 首页：Hero 增加 eyebrow、两个入口按钮（排行榜/地图）与极浅墨绿晕染；4 个统计卡加线性图标；
+    「关于 CNGOKZ」改双栏（正文 + 数据源/覆盖模式/收录内容/统计时间事实列表）；
+    NGrid 改响应式 `1 s:2 m:4`（600px 不再挤成 4 列导致数字断行）。
+  - 榜单/封禁：表格统一移入 `.panel`（标题 + 说明 + 计数徽章）；封禁理由红色、
+    SteamID64 不再换行、服务器列省略号 + tooltip。
+  - 地图：卡片图片上叠加当前模式难度徽章，图片 hover 放大，缺图时显示地图名 + 图标占位；
+    分页加页码提示。
+  - 地图详情：新增英雄区（缩略图 + 三模式 tier / Bonus / 大小 chips + 制作人 / 创意工坊），
+    排行榜移入面板。
+  - 服务器：头部计数 + 视图切换统一；卡片 hover 浮起、图片 hover 放大；两种视图都加缺图占位；
+    列状视图重排（地图名加粗、人数与复制按钮右侧对齐）。
+  - 记录：三列模式卡加墨绿圆点标题，时间用等宽绿色强调。
+  - 个人资料：新增头像英雄卡（72px 头像 + 名称 + SteamID64 + 区域 chip），两张表移入面板。
+  - 登录：Steam 图标 + 文案分栏卡片。
+  - 修复（本次发现的存量问题）：
+    - DataTable 列 `render` 中 `h()` 创建的类命中不了 scoped CSS（名次徽章、封禁理由、
+      榜单文字此前一直没上色）——新增公共组件 `components/RankBadge.vue` 供排行榜/地图详情复用，
+      其余改用 `:deep()`。
+    - `PlayerCell` 的 SteamID64 在窄列会折行，加 `white-space: nowrap` + 截断。
+- 涉及文件：新增 `frontend/src/components/RankBadge.vue`；修改 `frontend/src/styles/global.css`、
+  `frontend/src/app/theme.ts`、`frontend/src/layouts/DefaultLayout.vue`、
+  `frontend/src/components/PlayerCell.vue`、
+  `frontend/src/features/{home,leaderboard,maps,servers,records,bans,profile,auth}/*.vue`、
+  `PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无（纯前端展示层）。
+- 测试与结果（2026-10-17）：
+  - `npm run build`（含 `vue-tsc -b`）通过。
+  - 用 Playwright/Chromium 截图核对 1440（首页/榜单/地图/地图详情/服务器两种视图/记录/封禁/档案/登录）、
+    1100、860、600 断点：导航不换行不重叠；600px 统计卡 1 列；前三名金银铜徽章、
+    封禁理由红色、缺图占位、hover 与工具条均正常。
+  - 实测数据：首页 1,757 玩家 / 1,044 地图 / 89 在线服务器 / 163,352 记录；
+    地图详情前 100 名与制作人（Badges）正常。
+  - 截图环境说明：验证机无中文字体，已在本机用户目录安装 Noto Sans CJK 供截图核对（与仓库无关）。
+
 ## 2026-10-17 首页公告 / 地图卡片 / 服务器双视图 / 记录头像
 
 - 背景：用户反馈"还有部分没有恢复"，并明确四项：① 恢复首页「最新公告」的内容与位置；

@@ -1,4 +1,6 @@
-/* 全局基座：沿用旧原型浅色 tokens，组件样式交给 Naive UI + 各页 scoped CSS。 */
+/* 全局基座：沿用旧原型浅色 tokens，组件样式交给 Naive UI + 各页 scoped CSS。
+   设计约束见 PROJECT.md §2：白底 + 单一墨绿主色、细边框为主、克制干净、
+   不做科技感/竞技风；阴影只在 hover 浮起时使用。 */
 * {
   margin: 0;
   padding: 0;
@@ -17,9 +19,27 @@
   --border-strong: #d5d2cb;
   --accent: #2f6f4f;
   --accent-hover: #255a40;
+  --accent-pressed: #1e4a35;
   --accent-soft: #e7f0ea;
+  /* 极浅的墨绿晕染，用于 Hero / 选中态背景，保持"只有一个主色" */
+  --accent-wash: rgba(47, 111, 79, 0.06);
   --danger: #b5533c;
-  --font-base: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  --font-mono: 'SF Mono', 'JetBrains Mono', 'Cascadia Mono', 'Courier New', monospace;
+  /* 与旧原型一致的圆角 / 阴影 tokens：细边框为主，阴影只用于 hover 浮起 */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-card: 14px;
+  --shadow-sm: 0 1px 2px rgba(28, 28, 26, 0.04);
+  --shadow-md: 0 4px 16px rgba(28, 28, 26, 0.06);
+  --shadow-lg: 0 8px 28px rgba(28, 28, 26, 0.08);
+  /* 三档难度色（原型 tokens） */
+  --tier-easy: #4c8f6b;
+  --tier-mid: #b8862f;
+  --tier-hard: #b5533c;
+  --tier-severe: #8e2a2a;
 }
 
 body {
@@ -29,6 +49,18 @@ body {
   line-height: 1.6;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background-color: rgba(47, 111, 79, 0.16);
+}
+
+/* 键盘可访问性：只在键盘聚焦时出现墨绿描边（鼠标点击不出现） */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .container {
@@ -37,25 +69,287 @@ body {
   padding: 0 24px;
 }
 
+/* ========== 页面标题区：标题 + 次级说明（右侧可放操作/计数） ========== */
 .page-head {
-  margin-bottom: 24px;
+  margin-bottom: 28px;
+}
+
+.page-head-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.page-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.page-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 3px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background-color: var(--bg-card);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--accent);
 }
 
 .page-title {
-  font-size: 32px;
+  font-size: 34px;
   font-weight: 700;
-  letter-spacing: -0.02em;
-  margin-bottom: 8px;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  margin-bottom: 10px;
 }
 
 .page-sub {
-  font-size: 14px;
-  color: var(--text-muted);
+  font-size: 15px;
+  color: var(--text-secondary);
 }
 
+.page-sub a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.page-sub a:hover {
+  color: var(--accent-hover);
+}
+
+/* ========== 区块（与原型 .section 一致） ========== */
+.section {
+  margin-bottom: 40px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+/* 区块标题左侧墨绿竖条：给长页面建立视觉节奏 */
+.section-title::before {
+  content: '';
+  width: 4px;
+  height: 20px;
+  border-radius: 2px;
+  background-color: var(--accent);
+}
+
+.section-link {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.section-link:hover {
+  color: var(--accent-hover);
+}
+
+/* ========== 工具条（搜索 / 筛选 / 计数） ========== */
 .toolbar {
   display: flex;
   gap: 10px;
   margin-bottom: 16px;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.toolbar-spacer {
+  flex: 1;
+}
+
+/* ========== 面板：全站表格 / 榜单的统一容器 ========== */
+.panel {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.panel + .panel {
+  margin-top: 16px;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.panel-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.panel-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.panel-head-extra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.panel-body {
+  padding: 20px;
+}
+
+/* 表格直接铺满面板：去掉内部重复圆角 */
+.panel-body-flush {
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
+}
+
+/* ========== 卡片 hover 浮起（细边框为主，hover 才加轻微阴影） ========== */
+.hover-lift {
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-md);
+}
+
+/* ========== 强调链接 ========== */
+.accent-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.accent-link:hover {
+  color: var(--accent-hover);
+}
+
+/* ========== 通用小组件 ========== */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background-color: var(--bg-subtle);
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.chip-accent {
+  background-color: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* 数字 / SteamID / 时间：等宽字体 + 表格数字对齐 */
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ========== 表格：表头浅底 + 行 hover（统一全站观感） ========== */
+.n-data-table .n-data-table-th {
+  background-color: #f7f6f3;
+  font-weight: 600;
+}
+
+.n-data-table .n-data-table-th__title {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.n-data-table .n-data-table-tr:hover .n-data-table-td {
+  background-color: #f8f7f4;
+}
+
+/* ========== 路由切换的轻微淡入（克制，不做位移动画） ========== */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fade-in {
+  animation: fade-in 0.22s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-in,
+  .hover-lift {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* ========== 响应式 ========== */
+@media (max-width: 720px) {
+  .page-title {
+    font-size: 28px;
+  }
+
+  .page-sub {
+    font-size: 14px;
+  }
+
+  .page-head {
+    margin-bottom: 22px;
+  }
+
+  .section-title {
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 600px) {
+  .container {
+    padding: 0 16px;
+  }
+
+  .toolbar > * {
+    flex: 1 1 100%;
+  }
+
+  .toolbar > .n-tag {
+    flex: 0 0 auto;
+  }
 }

@@ -58,6 +58,18 @@
 - 顶部导航栏：链接永不断行，窄屏横向滚动或换两行，
   不得出现文字重叠；新增导航项时同步验证 1100 / 860 / 600 三档断点。
 
+视觉系统（2026-10-17 优化后，新增页面必须复用）：
+
+- 设计 token 唯一出口 `frontend/src/styles/global.css`（颜色/圆角/阴影/难度色/字体），
+  Naive UI 覆写唯一出口 `frontend/src/app/theme.ts`；页面不得自造颜色与阴影值。
+- 页面骨架：`.page-head`（可配 `.page-head-row` + `.page-head-actions`，标题区放计数徽章）
+  + `.panel`/`.panel-head`/`.panel-body`（表格与榜单统一容器）；
+  统计卡等可点击卡片加 `.hover-lift`（仅 hover 浮起，静止时保持细边框）。
+- 公共组件：`PlayerCell`（头像 + 名称 + SteamID64）、`RankBadge`（前 3 名金银铜名次徽章）；
+  表格列渲染用 `h()` 创建的类不会被 scoped CSS 命中，必须用组件或 `:deep()`。
+- 地图/服务器缩略图必须提供缺图占位（显示地图名/图标）；Hero 使用极浅墨绿晕染，
+  不做渐变/发光/科技纹理。
+
 待后端支持的能力（当前为模拟数据）：
 
 - Steam OpenID 登录、实时服务器数据、玩家记录查询、地图库、
@@ -152,7 +164,7 @@ cngokzapi/
 │   │   ├── app/          # 初始化、根组件、主题
 │   │   ├── router/       # 路由及标题
 │   │   ├── layouts/      # 页面布局
-│   │   ├── components/   # 跨模块公共组件
+│   │   ├── components/   # 跨模块公共组件（PlayerCell、RankBadge）
 │   │   ├── features/     # home/leaderboard/records/servers/maps/profile/bans/auth
 │   │   ├── services/     # http.ts 全站唯一 fetch 出口
 │   │   ├── stores/       # Pinia（app.currentMode）
@@ -485,6 +497,12 @@ POST /api/v2.0/records                 X-ApiKey: <key>
   首页恢复「最新公告」。后端补 `maps.mappers`、`servers.map_tier`/`player_names`、
   `/records` 的 `steam_id64`，并修正同步队列优先级（全局任务优先于玩家补全）。
   实测制作人 963/1044、在线服务器 89 台其中 42 台有在线玩家昵称；`cargo test` 23 passed。
+- 当前：全站视觉优化（2026-10-17，`develop`）：在保持 §2 设计约束的前提下提升信息层次——
+  `global.css` 落地面板/工具条/徽章/淡入等统一视觉系统，导航与首页 Hero 重做，
+  榜单/封禁表格统一进面板，地图卡片与服务器双视图加 hover 与缺图占位，
+  地图详情新增英雄区，个人资料新增头像英雄卡；新增公共组件 `RankBadge`，
+  修复 DataTable 列渲染类不命中 scoped CSS、`PlayerCell` SteamID64 换行、
+  600px 统计卡挤出 4 列等问题；`npm run build` 通过，1440/1100/860/600 四档截图核对，无 API/DB 变化。
 - 下一步（按序）：
   1. ~~旧阶段（vanilla 原型 + 单文件后端）~~ ✅ 已归档/替换
   2. ~~数据接入落地（§9）：`sources/` + `sync_jobs` + `scoring` + `0002/0003` + `ingest`；

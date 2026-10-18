@@ -3,6 +3,7 @@ import { computed, h, ref, watch } from 'vue'
 import { NAlert, NDataTable, NEmpty, NInput, NSelect, NSpin, NTag } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import PlayerCell from '@/components/PlayerCell.vue'
+import RankBadge from '@/components/RankBadge.vue'
 import { useApi } from '@/composables/useApi'
 import { useAppStore } from '@/stores/app'
 import { formatDaysAgo, formatNumber } from '@/utils/format'
@@ -56,19 +57,12 @@ const countText = computed(() => {
     : `筛出 ${rows.value.length} 人 / 共 ${total} 人`
 })
 
-function rankClass(rank: number): string {
-  if (rank === 1) return 'rank-1'
-  if (rank === 2) return 'rank-2'
-  if (rank === 3) return 'rank-3'
-  return ''
-}
-
 const columns: DataTableColumns<LeaderboardEntry> = [
   {
     title: '排名',
     key: 'rank',
     width: 80,
-    render: (row) => h('span', { class: `rank ${rankClass(row.rank ?? 0)}` }, `#${row.rank ?? '—'}`),
+    render: (row) => h(RankBadge, { rank: row.rank }),
   },
   {
     title: '玩家',
@@ -85,9 +79,9 @@ const columns: DataTableColumns<LeaderboardEntry> = [
     title: '总分数',
     key: 'total_points',
     width: 110,
-    render: (row) => formatNumber(row.total_points),
+    render: (row) => h('span', { class: 'mono points-strong' }, formatNumber(row.total_points)),
   },
-  { title: '平均分', key: 'avg_points', width: 90 },
+  { title: '平均分', key: 'avg_points', width: 90, render: (row) => h('span', { class: 'mono' }, row.avg_points) },
   { title: '记录数', key: 'records', width: 90 },
   {
     title: '最近游玩',
@@ -103,12 +97,14 @@ const columns: DataTableColumns<LeaderboardEntry> = [
 </script>
 
 <template>
-  <div class="page-head leaderboard-head">
+  <div class="page-head page-head-row">
     <div>
       <h1 class="page-title">玩家排行榜</h1>
       <p class="page-sub">当前模式：{{ app.currentMode }} · 点击导航栏模式按钮切换</p>
     </div>
-    <NTag type="success" size="medium">{{ countText }}</NTag>
+    <div class="page-head-actions">
+      <NTag type="success" size="medium">{{ countText }}</NTag>
+    </div>
   </div>
 
   <div class="toolbar">
@@ -117,73 +113,47 @@ const columns: DataTableColumns<LeaderboardEntry> = [
     <NSelect v-model:value="sortKey" :options="sortOptions" style="width: 180px" />
   </div>
 
-  <NSpin :show="loading">
-    <NAlert v-if="error" type="error" style="margin-bottom: 12px">{{ error }}</NAlert>
-    <NEmpty
-      v-else-if="!loading && (data?.length ?? 0) === 0"
-      description="榜单正在从上游同步，稍后刷新即可"
-      style="padding: 40px 0"
-    />
-    <NDataTable :columns="columns" :data="rows" :pagination="{ pageSize: 20 }" />
-  </NSpin>
+  <div class="panel">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title">{{ app.currentMode }} · 全球玩家排名</div>
+        <div class="panel-sub">按总分排序 · 名次由本站汇总分计算</div>
+      </div>
+      <div class="panel-head-extra">
+        <NTag v-if="loading" size="small">同步中…</NTag>
+      </div>
+    </div>
+
+    <NSpin :show="loading">
+      <NAlert v-if="error" type="error" style="margin: 16px 20px 0">{{ error }}</NAlert>
+      <NEmpty
+        v-else-if="!loading && (data?.length ?? 0) === 0"
+        description="榜单正在从上游同步，稍后刷新即可"
+        style="padding: 48px 0"
+      />
+      <NDataTable
+        v-else
+        :columns="columns"
+        :data="rows"
+        :pagination="{ pageSize: 20 }"
+        :scroll-x="860"
+      />
+    </NSpin>
+  </div>
 </template>
 
 <style scoped>
-.leaderboard-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.lb-player {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.lb-name {
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-.lb-steam {
-  font-size: 12px;
-  color: var(--text-muted);
-  font-family: 'SF Mono', 'Courier New', monospace;
-}
-
-.lb-active {
-  font-weight: 600;
-}
-
-.lb-date {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.rank {
-  display: inline-block;
-  min-width: 40px;
-  text-align: center;
-  padding: 3px 8px;
-  border-radius: 6px;
-  background: var(--bg-subtle);
+:deep(.points-strong) {
   font-weight: 700;
+  color: var(--accent);
 }
 
-.rank-1 {
-  background: #ffd700;
-  color: #000;
+:deep(.lb-active) {
+  font-weight: 600;
 }
 
-.rank-2 {
-  background: #c0c0c0;
-  color: #000;
-}
-
-.rank-3 {
-  background: #cd7f32;
-  color: #fff;
+:deep(.lb-date) {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 </style>

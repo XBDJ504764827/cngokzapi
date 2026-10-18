@@ -39,11 +39,19 @@ const initial = computed(() => (props.player ? props.player.trim().charAt(0) : '
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
+}
+
+.player-id {
+  min-width: 0;
 }
 
 .player-name {
   font-weight: 600;
   line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .player-name a {
@@ -58,6 +66,7 @@ const initial = computed(() => (props.player ? props.player.trim().charAt(0) : '
 .player-steam {
   font-size: 12px;
   color: var(--text-muted);
-  font-family: 'SF Mono', 'Courier New', monospace;
+  font-family: var(--font-mono);
+  white-space: nowrap;
 }
 </style>

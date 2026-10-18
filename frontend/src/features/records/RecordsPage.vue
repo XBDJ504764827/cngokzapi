@@ -29,8 +29,8 @@ const columns: DataTableColumns<RecordEntry> = [
       ]),
   },
   { title: '地图', key: 'map', width: 130, ellipsis: { tooltip: true } },
-  { title: '时间', key: 'time', width: 78 },
-  { title: '分数', key: 'points', width: 58 },
+  { title: '时间', key: 'time', width: 78, render: (row) => h('span', { class: 'time-value' }, row.time) },
+  { title: '分数', key: 'points', width: 58, render: (row) => h('span', { class: 'mono' }, row.points) },
   { title: '日期', key: 'date', width: 88 },
 ]
 
@@ -52,10 +52,16 @@ const hasData = computed(() => (data.value ?? []).length > 0)
 
   <NSpin :show="loading">
     <NAlert v-if="error" type="error" style="margin-bottom: 12px">{{ error }}</NAlert>
-    <NEmpty v-else-if="!loading && !hasData" description="暂无记录数据" style="padding: 40px 0" />
+    <NEmpty v-else-if="!loading && !hasData" description="暂无记录数据" style="padding: 48px 0" />
 
     <div v-else class="records-columns">
-      <NCard v-for="mode in MODES" :key="mode" :title="mode" size="small">
+      <NCard v-for="mode in MODES" :key="mode" size="small">
+        <template #header>
+          <span class="records-col-title">
+            <span class="mode-dot" />
+            {{ mode }}
+          </span>
+        </template>
         <template #header-extra>
           <NTag type="success" size="small">最新 20 条</NTag>
         </template>
@@ -78,6 +84,23 @@ const hasData = computed(() => (data.value ?? []).length > 0)
   gap: 16px;
 }
 
+.records-col-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.mode-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(47, 111, 79, 0.14);
+}
+
 :deep(.player-inline) {
   display: flex;
   align-items: center;
@@ -95,6 +118,12 @@ const hasData = computed(() => (data.value ?? []).length > 0)
 }
 
 :deep(.player-link:hover) {
+  color: var(--accent);
+}
+
+:deep(.time-value) {
+  font-family: var(--font-mono);
+  font-weight: 600;
   color: var(--accent);
 }
 
