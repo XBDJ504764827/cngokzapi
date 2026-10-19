@@ -3,6 +3,8 @@
 export interface RecordEntry {
   player: string
   steam_id64: string
+  /** 真实头像；为空时前端用占位图 */
+  avatar: string
   /** 地图 id，用于展示地图图片与跳转地图详情 */
   map_id: number
   map: string

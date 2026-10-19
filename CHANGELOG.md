@@ -10,6 +10,28 @@
 
 ---
 
+## 2026年10月19日 16时53分13秒 真实数据回填完成 + 排行榜/最新记录接入真实头像
+
+- 背景：`player_profile` 回填已跑完，同时发现排行榜与最新记录前端虽然拿到了 `avatar` 字段，
+  但仍调用 `avatarUrl(steamId64)` 忽略真实头像，页面显示为 DiceBear 占位图。
+- 变更内容：
+  - 排行榜 `LeaderboardPage` 改用 `avatarUrl(e.steam_id64, e.avatar)`。
+  - 最新记录后端 `RecordEntry` 新增 `avatar`（SQL 联查 `players.avatar_url`），前端改用真实头像。
+  - 封禁名单 SQL 改为 `COALESCE(bans.avatar_url, players.avatar_url)`，封禁玩家也显示真实头像。
+  - 修复 `PlayerCell`（地图详情 / 封禁名单）头像永远显示首字母的问题：NAvatar 存在 default slot
+    时会优先渲染文字而忽略 `src`；改为 `#fallback` 插槽 + `fallback-src`，真实头像正常渲染。
+  - 补跑 18 个因旧错误/瞬时 404 未写入头像的档案任务；确认剩余 6 人上游 `avatar_hash` 为空。
+- 涉及文件：`backend/src/modules/records/{models,repository}.rs`、
+  `backend/src/modules/bans/repository.rs`、`frontend/src/components/PlayerCell.vue`、
+  `frontend/src/features/{leaderboard/LeaderboardPage.vue,records/{RecordsPage.vue,types.ts}}`、
+  `PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：`GET /api/v1/records` 新增 `avatar` 字段（向后兼容，前端类型同步）。
+- 测试与结果（北京时间）：`cargo fmt`/`build`/`clippy -D warnings`、`cargo test`（30 passed）、
+  `npm run build` 全过；重启后端后 Playwright 实测排行榜 **150/150**、最新记录 **60/60**、
+  地图详情 40/40、封禁名单 20/20 均使用真实头像；数据审计：玩家 3994 人，头像 3988 人
+  （99.85%，6 人上游无头像）、国籍 3024 人；记录 32.6 万、地图 1046（963 有制作人）、
+  在线服务器 619、封禁 503。
+
 ## 2026年10月19日 16时19分42秒 真实数据补全：全量回填玩家头像/国籍 + 同步吞吐调整
 
 - 背景：审计发现所有页面已读真实数据，但 `players` 表 3994 人中仅 163 人有头像、131 人有国籍——

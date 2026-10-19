@@ -9,6 +9,7 @@ use crate::modules::format::format_duration_ms;
 struct Row {
     player: String,
     steam_id: String,
+    avatar: Option<String>,
     map_id: i64,
     map: String,
     mode: String,
@@ -20,6 +21,7 @@ struct Row {
 const SQL: &str = r#"
 SELECT p.name                              AS player,
        p.steam_id::TEXT                     AS steam_id,
+       p.avatar_url                        AS avatar,
        m.id                                 AS map_id,
        m.name                              AS map,
        r.mode                              AS mode,
@@ -50,6 +52,7 @@ pub async fn latest_by_mode(
         .map(|r| RecordEntry {
             player: r.player,
             steam_id64: r.steam_id,
+            avatar: r.avatar.unwrap_or_default(),
             map_id: r.map_id,
             map: r.map,
             mode: r.mode,

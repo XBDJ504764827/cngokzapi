@@ -4,7 +4,7 @@
 import { computed } from 'vue'
 import { NAvatar } from 'naive-ui'
 import { RouterLink } from 'vue-router'
-import { avatarUrl } from '@/utils/avatar'
+import { avatarUrl, fallbackAvatar } from '@/utils/avatar'
 
 const props = withDefaults(
   defineProps<{
@@ -19,15 +19,17 @@ const props = withDefaults(
   { link: true, compact: false },
 )
 
-// 头像：有真实头像用真实的，否则用按 SteamID64 生成的占位图；图片失败时退回昵称首字
+// 头像：有真实头像用真实的，否则用按 SteamID64 生成的占位图；
+// 注意：NAvatar 只要存在 default slot 就优先渲染文字、忽略 src，故初始字改为 #fallback 插槽。
 const src = computed(() => avatarUrl(props.steamId64, props.avatar))
+const fallbackSrc = computed(() => fallbackAvatar(props.steamId64))
 const initial = computed(() => (props.player ? props.player.trim().charAt(0) : '?'))
 </script>
 
 <template>
   <div class="player-cell">
-    <NAvatar :src="src" :size="compact ? 26 : 32" round>
-      {{ initial }}
+    <NAvatar :src="src" :size="compact ? 26 : 32" round :fallback-src="fallbackSrc">
+      <template #fallback>{{ initial }}</template>
     </NAvatar>
     <div class="player-id">
       <div class="player-name">

@@ -24,19 +24,20 @@ pub async fn search(
     offset: i64,
 ) -> Result<(Vec<BanEntry>, usize), sqlx::Error> {
     let rows: Vec<Row> = sqlx::query_as(
-        r#"SELECT name                                     AS player,
-                  steam_id::TEXT                           AS steam_id,
-                  avatar_url                               AS avatar,
-                  reason                                   AS reason,
-                  to_char(banned_at, 'YYYY-MM-DD')          AS banned_at,
-                  server                                   AS server,
-                  detail                                   AS detail,
+        r#"SELECT b.name                                   AS player,
+                  b.steam_id::TEXT                         AS steam_id,
+                  COALESCE(NULLIF(b.avatar_url, ''), p.avatar_url, '') AS avatar,
+                  b.reason                                 AS reason,
+                  to_char(b.banned_at, 'YYYY-MM-DD')        AS banned_at,
+                  b.server                                 AS server,
+                  b.detail                                 AS detail,
                   count(*) OVER()                          AS total
-           FROM bans
+           FROM bans b
+           LEFT JOIN players p ON p.steam_id = b.steam_id
            WHERE ($1 = ''
-                  OR name ILIKE '%' || $1 || '%'
-                  OR steam_id::TEXT LIKE '%' || $1 || '%')
-           ORDER BY banned_at DESC
+                  OR b.name ILIKE '%' || $1 || '%'
+                  OR b.steam_id::TEXT LIKE '%' || $1 || '%')
+           ORDER BY b.banned_at DESC
            LIMIT $2 OFFSET $3"#,
     )
     .bind(query)

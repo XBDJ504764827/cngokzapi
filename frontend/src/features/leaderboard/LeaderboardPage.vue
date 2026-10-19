@@ -106,7 +106,7 @@ const columns = computed(() =>
         <div class="lb-list">
           <div v-for="e in col.rows" :key="e.steam_id64" class="lb-row">
             <RankBadge :rank="e.rank" />
-            <NAvatar :src="avatarUrl(e.steam_id64)" :size="28" round class="lb-avatar" />
+            <NAvatar :src="avatarUrl(e.steam_id64, e.avatar)" :size="28" round class="lb-avatar" />
             <div class="lb-main">
               <div class="lb-line">
                 <RouterLink

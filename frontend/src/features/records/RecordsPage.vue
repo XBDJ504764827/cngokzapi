@@ -81,7 +81,7 @@ function onImageError(e: Event): void {
               </div>
               <div class="rec-line">
                 <span class="rec-player-wrap">
-                  <NAvatar :src="avatarUrl(r.steam_id64)" :size="18" round />
+                  <NAvatar :src="avatarUrl(r.steam_id64, r.avatar)" :size="18" round />
                   <RouterLink
                     class="rec-player"
                     :to="`/profile/${r.steam_id64}`"
