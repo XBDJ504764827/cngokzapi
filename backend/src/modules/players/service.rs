@@ -45,15 +45,16 @@ pub async fn profile(state: &AppState, raw: &str) -> Result<PlayerProfile, AppEr
     } else {
         Vec::new()
     };
-    let (name, avatar, region) = match player {
-        Some(p) => (p.name, p.avatar.unwrap_or_default(), p.region),
-        None => (String::new(), String::new(), None),
+    let (name, avatar, country, region) = match player {
+        Some(p) => (p.name, p.avatar.unwrap_or_default(), p.country, p.region),
+        None => (String::new(), String::new(), None, None),
     };
 
     Ok(PlayerProfile {
         steam_id64: raw.to_string(),
         name,
         avatar,
+        country,
         region,
         syncing: !synced,
         scores,

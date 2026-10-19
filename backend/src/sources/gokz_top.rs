@@ -141,6 +141,29 @@ pub struct PlayerRow {
     pub records_800_plus: i32,
 }
 
+/// `GET /players/{steamid64}`（玩家档案：国家 / 头像 hash / 名称）。
+#[derive(Debug, Clone, Deserialize)]
+pub struct ProfileRow {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub avatar_hash: Option<String>,
+    #[serde(default)]
+    pub country: Option<String>,
+    #[serde(default)]
+    pub last_played_at: Option<String>,
+}
+
+impl ProfileRow {
+    /// GOKZ.TOP 存的是 Steam 头像 hash，拼成 Steam CDN 全尺寸头像。
+    pub fn avatar_url(&self) -> Option<String> {
+        self.avatar_hash
+            .as_deref()
+            .filter(|h| !h.is_empty())
+            .map(|h| format!("https://avatars.steamstatic.com/{h}_full.jpg"))
+    }
+}
+
 /// `GET /records`（可按 map_name / steamid64 过滤）行。
 #[derive(Debug, Clone, Deserialize)]
 pub struct TopRecordRow {
@@ -279,6 +302,16 @@ impl GokzTop<'_> {
             .await
     }
 
+    /// 单个玩家档案（国家 / 头像 hash / 名称）；不存在返回 `None`。
+    pub async fn player_profile(&self, steamid64: &str) -> Result<Option<ProfileRow>, SourceError> {
+        let u = url(&format!("/players/{steamid64}"), &[]);
+        match self.0.get_json::<ProfileRow>(&u).await {
+            Ok(row) => Ok(Some(row)),
+            Err(SourceError::Rejected(404, _)) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
     /// 某模式的玩家榜（`scope` 为 KZT/SKZ/VNL）。
     pub async fn leaderboard(
         &self,
@@ -411,6 +444,29 @@ mod tests {
         assert_eq!(row.points, 1_670_803);
         assert_eq!(row.unique_map_finishes, 967);
         assert_eq!(row.player.steamid64, "76561198325578948");
+    }
+
+    #[test]
+    fn decodes_player_profile_and_avatar_url() {
+        let raw = r#"{"name":"Flonnych","alias":null,"custom_id":null,
+            "avatar_hash":"2accf354dadf00fabf37720fe273778a5a542861","country":"UA",
+            "primary_scope":"OVR","created_at":"2018-01-29T19:30:24Z",
+            "last_played_at":"2026-10-18T18:27:48Z","updated_at":"2026-10-19T00:13:13Z",
+            "steamid64":"76561198297415967","roles":null,"favorite_server":null}"#;
+        let row: ProfileRow = serde_json::from_str(raw).unwrap();
+        assert_eq!(row.name, "Flonnych");
+        assert_eq!(row.country.as_deref(), Some("UA"));
+        assert_eq!(
+            row.avatar_url().as_deref(),
+            Some(
+                "https://avatars.steamstatic.com/2accf354dadf00fabf37720fe273778a5a542861_full.jpg"
+            )
+        );
+
+        // 没有头像 hash 时不拼 URL；国家可能为 null
+        let bare: ProfileRow = serde_json::from_str(r#"{"name":"x","steamid64":"1"}"#).unwrap();
+        assert!(bare.avatar_url().is_none());
+        assert!(bare.country.is_none());
     }
 
     #[test]

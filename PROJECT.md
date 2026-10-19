@@ -51,6 +51,12 @@
 6. 个人资料：玩家统计、完成地图、个人记录；最近成绩与「已同步成绩」计数均**只统计有分记录
    （`points > 0`）**，不展示未破个人记录/未计分的完成。最近成绩**按 KZT/SKZ/VNL 三列分组**，
    每条含地图缩略图 + 地图名（点击进地图详情）、关卡、完成时间、分数、日期；每模式最多 20 条。
+   页面视觉（2026-10-19 重设计）：身份卡（真实头像 + 国旗角标 + 可复制 SteamID64 + 国家名 / 区域），
+   下方 KZT/SKZ/VNL 三张模式档案卡（各含全球总积分、全球排名、等级与 10 级进度条、完成地图 / WR /
+   本站已同步）。等级由 Rating 判定，与 GOKZ.TOP 口径一致：New 1.00 / Beginner 2.00 / Amateur 3.00 /
+   Casual 4.00 / Regular 5.00 / Skilled 6.00 / Expert 7.00 / Pro 8.00 / Master 9.00 / Legend 10.00，
+   Rating < 1 视为「未评级」。国家（ISO 3166 alpha-2，国旗用 flagcdn 图片，缺图只显示文字）与
+   真实头像源自 GOKZ.TOP `GET /v1/players/{steamid64}`，随玩家档案同步写入。
 7. Steam 登录：当前为模拟，需接 Steam OpenID 真实登录。
 8. 封禁名单（新增）：封禁玩家公示，每行含头像、名称、SteamID64、封禁理由、
    封禁时间、封禁服务器、详细数据（地图·模式·异常成绩·Demo 编号）；支持名称模糊 /
@@ -64,7 +70,10 @@
    前端将其展示为「未计分」（hover 有规则说明）。
 10. 玩家查询：导航「玩家」页，支持输入 SteamID（`STEAM_x:y:z`）、SteamID3（`[U:1:w]` / 纯数字账号 id）、
     SteamID64、Steam 个人主页链接（`/profiles/…` 或 `/id/…`）；`/id/` 自定义名经 Steam Web API
-    `ResolveVanityURL` 解析，成功后退转到个人资料页。
+    `ResolveVanityURL` 解析，成功后退转到个人资料页。页面视觉（2026-10-19 重设计）：
+    Hero 标题 + 大号搜索卡（实时格式识别条：显示识别出的格式与 SteamID64 预览，无法识别时输入框转警示态）、
+    4 个可点击示例 chip（点击即查询）、最近查询（`localStorage` 按 SteamID64 去重、最多 6 条，可清除）、
+    格式说明 2×2 卡片（点击即用示例查询）与「如何找到自己的 SteamID」提示卡；≤980px 单列堆叠。
 
 设计约束（必须保留）：
 
@@ -237,7 +246,8 @@ JSON 一律 snake_case，与前后端类型一一对应。
 
 - `maps` 增列：`external_id`、`tier_kzt`/`tier_skz`/`tier_vnl`（按模式 tier，0=未评级）、
   `bonuses`、`workshop_id`、`filesize`、`validated`、`authors TEXT[]`、`synced_at`。
-- `players` 增列：`region`、`avatar_synced_at`、`updated_at`。
+- `players` 增列：`region`、`country`（ISO 3166 alpha-2，来自 GOKZ.TOP `/players/{steamid64}`；
+  `0006_player_country.sql`）、`avatar_synced_at`、`updated_at`。
 - `records` 增列：`source`（`plugin`/`gokz_top`/`kztimer`）、`external_id`（UNIQUE）、
   `stage`、`tickrate`、`teleports`、`points_local`（本站口径，可空）、
   `origin_server_id`、`server_name`、`server_group`、`wr_time_ms`、`is_valid`、`updated_at`；
@@ -367,7 +377,8 @@ JSON 一律 snake_case，与前后端类型一一对应。
 
 关键接口（均已实测）：
 
-- 玩家：`GET /v1/leaderboards/players/{steamid64}`、`GET /v1/records?steamid64=&offset=&limit=`
+- 玩家：`GET /v1/leaderboards/players/{steamid64}`、`GET /v1/players/{steamid64}`
+  （国家 / 头像 hash / 名称）、`GET /v1/records?steamid64=&offset=&limit=`
 - 榜单：`GET /v1/leaderboards/players?offset=&limit=`（返回 `count`，可分页）
 - 地图：`GET /v1/maps`、`GET /v1/records?map_name=&stage=&limit=`
 - 增量：`GET /v1/records/recent?created_since=`
@@ -598,12 +609,17 @@ POST /api/v2.0/records                 X-ApiKey: <key>
 - 当前：导航「玩家」查询（2026年10月19日，`develop`）：新增 `/players` 页与导航项，支持
   SteamID/SteamID3/SteamID64/个人主页链接（含 `/id/` 自定义名经 Steam Web API 解析）；
   后端 `GET /api/v1/players/resolve?q=` 统一返回 `steam_id64`，前端解析后跳转个人资料页。
+- 当前：个人资料页重设计（2026年10月19日，`develop`）：身份卡展示真实头像 / 国旗 / 可复制
+  SteamID64 / 国家名与区域；下方三张模式档案卡展示全球总积分、全球排名与等级（New 1.00 →
+  Legend 10.00，`rating < 1` 未评级，与 GOKZ.TOP 口径一致）；最近成绩区块保持不变。
+  后端新增 `players.country`（`0006_player_country.sql`）与 GOKZ.TOP `GET /v1/players/{steamid64}`
+  客户端；玩家同步一并写回头像与国籍，并重置 `player` 任务回填历史数据。
 - 下一步（按序）：
   1. ~~旧阶段（vanilla 原型 + 单文件后端）~~ ✅ 已归档/替换
   2. ~~数据接入落地（§9）：`sources/` + `sync_jobs` + `scoring` + `0002/0003` + `ingest`；
      真实数据点亮全部页面~~ ✅ 已完成
   3. 单条成绩计分：本地实现标准 GOKZ 公式（用上游 `points` 做 oracle 单测），
      落地后 `records.points_local` 与榜单可切回"本地分优先"（§9.4）
-  4. 数据完善：玩家头像懒加载（Steam 社区 XML）、档案/榜单过期重同步、Redis 缓存
+  4. 数据完善：档案/榜单过期重同步（含头像与国籍刷新）、Redis 缓存
   5. Steam OpenID 登录 + 管理接口（删记录、封禁）+ 上报限流与审计
   6. `cngokzapi` 服务器插件（瘦上报器，见 §9.7）—— 对接已就绪的 `/api/v1/ingest/records`

@@ -9,15 +9,18 @@ use crate::modules::format::format_duration_ms;
 pub struct PlayerRow {
     pub name: String,
     pub avatar: Option<String>,
+    pub country: Option<String>,
     pub region: Option<String>,
 }
 
 /// 玩家基础档案。
 pub async fn find_player(pool: &PgPool, steam_id: i64) -> Result<Option<PlayerRow>, sqlx::Error> {
-    sqlx::query_as("SELECT name, avatar_url AS avatar, region FROM players WHERE steam_id = $1")
-        .bind(steam_id)
-        .fetch_optional(pool)
-        .await
+    sqlx::query_as(
+        "SELECT name, avatar_url AS avatar, country, region FROM players WHERE steam_id = $1",
+    )
+    .bind(steam_id)
+    .fetch_optional(pool)
+    .await
 }
 
 #[derive(FromRow)]

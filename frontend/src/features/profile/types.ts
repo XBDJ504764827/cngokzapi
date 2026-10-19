@@ -28,6 +28,8 @@ export interface PlayerProfile {
   steam_id64: string
   name: string
   avatar: string
+  /** 国家/地区代码（ISO 3166 alpha-2，如 CN / UA），可能为空 */
+  country: string | null
   region: string | null
   /** 本地暂无数据、已触发后台同步 */
   syncing: boolean

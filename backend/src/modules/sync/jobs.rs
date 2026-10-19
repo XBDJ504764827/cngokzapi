@@ -321,6 +321,19 @@ pub async fn run_player(
     let client = GokzTop(src);
     let mut n = 0;
 
+    // 0) 基础档案（名称 / 头像 / 国家），用于个人资料页的头像与国旗
+    if let Some(p) = client.player_profile(steamid64).await? {
+        repository::upsert_player_profile(
+            pool,
+            steam_id,
+            &p.name,
+            p.avatar_url().as_deref(),
+            p.country.as_deref(),
+        )
+        .await?;
+        n += 1;
+    }
+
     // 1) 三模式档案（排名/积分/完成图数等上游口径）
     for mode in MODES {
         if let Some(p) = client.player(steamid64, mode).await? {

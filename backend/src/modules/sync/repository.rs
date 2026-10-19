@@ -274,6 +274,36 @@ pub async fn map_bonuses(pool: &PgPool, name: &str) -> Result<i16, sqlx::Error> 
     Ok(row.map(|r| r.0).unwrap_or(0))
 }
 
+/// 玩家档案 upsert（国家 / 头像来自 GOKZ.TOP `/players/{steamid64}`）。
+/// 空值视为「本次没拿到」，不覆盖库里已有的值。
+pub async fn upsert_player_profile(
+    pool: &PgPool,
+    steam_id: i64,
+    name: &str,
+    avatar_url: Option<&str>,
+    country: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"INSERT INTO players (steam_id, name, avatar_url, country)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (steam_id) DO UPDATE SET
+               name = CASE WHEN EXCLUDED.name = '' THEN players.name ELSE EXCLUDED.name END,
+               avatar_url = COALESCE(NULLIF(EXCLUDED.avatar_url, ''), players.avatar_url),
+               country    = COALESCE(NULLIF(EXCLUDED.country, ''), players.country),
+               avatar_synced_at = CASE
+                   WHEN EXCLUDED.avatar_url IS NOT NULL AND EXCLUDED.avatar_url <> ''
+                   THEN now() ELSE players.avatar_synced_at END,
+               updated_at = now()"#,
+    )
+    .bind(steam_id)
+    .bind(name)
+    .bind(avatar_url)
+    .bind(country)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 /// 玩家 upsert；空昵称不覆盖已有昵称。
 pub async fn upsert_player(pool: &PgPool, steam_id: i64, name: &str) -> Result<(), sqlx::Error> {
     sqlx::query(

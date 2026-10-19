@@ -7,6 +7,8 @@ pub struct PlayerProfile {
     pub steam_id64: String,
     pub name: String,
     pub avatar: String,
+    /// 国家/地区代码（ISO 3166 alpha-2，如 `CN`/`UA`），来自 GOKZ.TOP。
+    pub country: Option<String>,
     pub region: Option<String>,
     /// 本地暂无该玩家数据、已入队后台同步；前端可提示"同步中"。
     pub syncing: bool,

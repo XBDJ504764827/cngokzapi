@@ -10,6 +10,62 @@
 
 ---
 
+## 2026年10月19日 14时15分41秒 个人资料页重设计：身份卡 + 三模式等级档案（国旗 / 头像 / 评级）
+
+- 背景：个人资料页此前是「头像英雄条 + 模式积分表格」，信息密度低、表格单调；用户要求突出头像、
+  SteamID64、所在国家国旗，以及 KZT/SKZ/VNL 三模式的总积分、全球排名与等级，且等级判定与
+  GOKZ.TOP 一致。
+- 变更内容：
+  - 后端：
+    - `sources/gokz_top.rs` 新增 `GET /v1/players/{steamid64}` 客户端（`name` / `avatar_hash` /
+      `country`），`ProfileRow.avatar_url()` 拼出 Steam CDN 全尺寸头像；新增解析单测。
+    - 玩家同步 `run_player` 先拉基础档案（第 0 步），写回名称 / 头像 / 国籍。
+    - `sync/repository.rs` 新增 `upsert_player_profile`（空值不覆盖已有值）；
+      `players` 增列 `country`（迁移 `0006_player_country.sql`），同时把 `player` 任务重置为
+      `pending` 回填历史玩家的国家与头像。
+    - `players` 模型与仓库增 `country`，个人资料接口返回。
+  - 前端：
+    - 身份卡：真实头像（国旗角标）、玩家名、可复制 SteamID64、中文国家名与区域 chip、Steam 主页入口。
+    - 三模式档案卡：全球总积分、全球排名、等级（New 1.00 → Legend 10.00）与 10 级进度条、
+      「升到 X 还需 Rt」；`rating < 1` 或缺失显示「未评级」；未上榜模式占位。
+      等级与 Rating 算法在 `features/profile/level.ts`（纯函数，三模式共用）。
+    - 国旗用 `flagcdn` 图片 + `Intl.DisplayNames` 中文名（`utils/country.ts`），图片失败时只显示文字。
+    - 查询卡改为与玩家查询页一致的搜索面板；响应式：模式卡 3 → 2 → 1 列，窄屏身份卡纵向排列。
+    - 最近成绩区块及样式保持原样。
+- 涉及文件：`backend/src/sources/gokz_top.rs`、`backend/src/modules/sync/{jobs,repository}.rs`、
+  `backend/src/modules/players/{models,repository,service}.rs`、
+  `backend/migrations/0006_player_country.sql`、
+  `frontend/src/features/profile/{ProfilePage.vue,types.ts,level.ts}`、
+  `frontend/src/utils/country.ts`、`PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：新增迁移 `0006_player_country.sql`（`players.country` + 重置 `player` 任务）；
+  `GET /api/v1/players/{steam_id64}` 新增 `country` 字段，`avatar` 开始返回真实头像地址。
+- 测试与结果（北京时间）：`cargo fmt`/`build`/`clippy -D warnings`、`cargo test`（**30 passed**）、
+  `npm run build` 全过；迁移已应用，实测 Flonnych 写回 `country=UA` 与 Steam 头像；
+  页面核对 KZT Legend Rt 10.98 #2 / SKZ Regular Rt 5.66 #495 / VNL Master Rt 9.35 #62，
+  2 模式玩家显示「该模式暂无榜单记录」，`rating=0` 显示「未评级」；
+  Playwright 1440 / 980 / 390 三档无横向滚动、无控制台报错。
+
+## 2026年10月19日 13时47分49秒 玩家查询页重新设计：实时格式识别 + 示例 + 最近查询
+
+- 背景：玩家查询页此前只有一个输入框和一行格式列表，样式单调、缺少引导，也无法即时判断输入是否可识别。
+- 变更内容：
+  - 重做 `PlayersPage.vue`：
+    - Hero 标题区（eyebrow + 标题 + 说明），搜索卡改为视觉主体（主色顶栏、搜索图标、大号主操作按钮）。
+    - 实时识别条：输入时显示识别出的格式与推算出的 SteamID64 预览；无法识别时输入框转 warning 态并提示。
+    - 4 个示例 chip（SteamID64 / STEAM_x:y:z / SteamID3 / 主页链接），点击即填入并查询。
+    - 最近查询：成功解析后写入 `localStorage`（`cngokz:recent-player-queries`，按 SteamID64 去重、最多 6 条），
+      展示头像 / SteamID64 / 格式 / 时间，支持一键清除与点击回到资料页。
+    - 格式说明改为 2×2 卡片（图标 + 说明 + 示例），点击即用示例查询；右侧新增
+      「如何找到自己的 SteamID」步骤与提示卡。
+    - 响应式：≤980px 主栅格单列，≤600px 搜索框、格式卡与最近查询纵向排列；
+      同时修正 Hero 晕染负边距在窄屏造成的横向滚动。
+  - 接入此前已存在但未被使用的 `players/detect.ts` 做前端实时识别（最终解析仍以后端接口为准）。
+- 涉及文件：`frontend/src/features/players/{PlayersPage.vue,detect.ts}`、`PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无；仍使用 `GET /api/v1/players/resolve?q=`。
+- 测试与结果（北京时间）：`npm run build` 通过；Playwright 验证 1440 / 980 / 390 三档均无横向滚动、无控制台报错；
+  `STEAM_1:1:168575119` 实时识别并预览 `76561198297415967`，非法输入显示警示；
+  点击示例跳转 `/profile/76561198297415967`，最近查询的写入 / 清除 / 回跳均正常。
+
 ## 2026年10月19日 05时42分54秒 导航新增「玩家」查询（多格式 SteamID 解析）
 
 - 背景：用户要求顶部导航新增玩家功能，可通过 SteamID / SteamID64 / Steam 个人主页链接查询玩家资料。
