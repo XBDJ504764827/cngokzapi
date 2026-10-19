@@ -90,6 +90,26 @@ pub struct ServerUpsert<'a> {
     pub steam_id: Option<&'a str>,
 }
 
+/// 用 gokz.top 的 `live_status.players` 补写 Steam 服的在线玩家昵称。
+/// Steam Web API 只给人数、不给昵称；插件服以插件上报为准，故只更新 `source='steam'`。
+pub async fn update_server_player_names(
+    pool: &PgPool,
+    ip: &str,
+    port: i32,
+    names: &[String],
+) -> Result<u64, sqlx::Error> {
+    let res = sqlx::query(
+        "UPDATE servers SET player_names = $3, updated_at = now() \
+         WHERE ip = $1 AND port = $2 AND online AND source = 'steam'",
+    )
+    .bind(ip)
+    .bind(port)
+    .bind(names)
+    .execute(pool)
+    .await?;
+    Ok(res.rows_affected())
+}
+
 /// 封禁 upsert 载荷。
 pub struct BanUpsert<'a> {
     pub external_id: &'a str,

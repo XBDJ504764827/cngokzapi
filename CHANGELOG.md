@@ -10,6 +10,24 @@
 
 ---
 
+## 2026年10月19日 21时47分38秒 修复服务器只显示人数不显示玩家昵称
+
+- 背景：服务器卡片能显示 `player_count`，但「在线玩家」始终为空。原因：Steam Web API
+  `GetServerList` 只返回人数、不返回昵称；`run_servers` 写入的 `player_names` 恒为空，
+  而插件上报链路尚未启用。
+- 变更内容：
+  - `run_servers` 在 Steam 同步完成后，额外拉 gokz.top `/v1/servers`，把
+    `live_status.players[].name` 按 `ip:port` 补写到 `source='steam'` 的行（插件服不覆盖）。
+  - 新增 `update_server_player_names`（本模块内 SQL），同步失败只告警，不影响人数/在线状态。
+  - 前端：玩家数为正但昵称尚未同步时显示「昵称同步中」，而不是误报「暂无玩家」。
+- 涉及文件：`backend/src/modules/sync/jobs.rs`、`backend/src/modules/sync/repository.rs`、
+  `frontend/src/features/servers/ServersPage.vue`、`PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无表结构/API 变化；仅服务器同步多一次 gokz.top 请求。
+- 测试与结果（北京时间）：`cargo fmt`/`build`/`clippy -D warnings`、`cargo test`（31 passed）、
+  `npm run build` 全过；实测 71 台 CS:GO 服中 25 台有在线玩家昵称（共 91 个昵称），
+  覆盖 CNGOKZ / AXE 等主流社区；剩余 1 台有玩家但未在 gokz.top 登记，前端显示「昵称同步中」；
+  Playwright 确认 91 个昵称 chip 正常渲染、无报错。
+
 ## 2026年10月19日 21时31分52秒 服务器社区分类改紧凑换行 + 简写 + 归一化修正
 
 - 背景：服务器分组较多时，横向滚动会把部分分组藏在视口外；改为四列网格后又显得过大、过于整齐。

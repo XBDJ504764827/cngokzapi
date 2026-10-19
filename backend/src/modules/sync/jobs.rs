@@ -697,6 +697,33 @@ pub async fn run_servers(
         n += 1;
     }
     tracing::info!(servers = rows.len(), "Steam 服务器同步完成（KZ 服）");
+
+    // Steam Web API 只有人数，没有昵称：用 gokz.top 的 live_status.players 补写。
+    // 插件服以插件上报为准，本步骤只更新 source='steam' 的行。
+    match GokzTop(src).servers().await {
+        Ok(page) => {
+            let mut named = 0;
+            for s in &page.data {
+                let Some(ls) = &s.live_status else {
+                    continue;
+                };
+                let names: Vec<String> = ls
+                    .players
+                    .as_ref()
+                    .map(|players| players.iter().filter_map(|p| p.name.clone()).collect())
+                    .unwrap_or_default();
+                if names.is_empty() {
+                    continue;
+                }
+                if repository::update_server_player_names(pool, &s.ip, s.port, &names).await? > 0 {
+                    named += 1;
+                }
+            }
+            tracing::info!(named, "已补写 gokz.top 在线玩家昵称");
+        }
+        // 失败不影响服务器在线状态，只是暂时没有昵称
+        Err(e) => tracing::warn!(error = %e, "gokz.top 在线玩家不可用，保留 Steam 人数"),
+    }
     Ok(n)
 }
 

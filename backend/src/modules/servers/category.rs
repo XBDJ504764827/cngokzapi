@@ -45,7 +45,7 @@ fn derive_from_name(name: &str) -> String {
     let mut earliest: Option<usize> = None;
     for marker in MARKERS {
         if let Some(i) = name.find(marker) {
-            if i > 0 && earliest.map_or(true, |b| i < b) {
+            if i > 0 && earliest.is_none_or(|b| i < b) {
                 earliest = Some(i);
             }
         }

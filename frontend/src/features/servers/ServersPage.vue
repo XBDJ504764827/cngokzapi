@@ -197,7 +197,7 @@ function region(server: ServerEntry): string {
             <div class="server-players-title">在线玩家</div>
             <div class="server-players-list">
               <span v-for="p in s.player_names" :key="p" class="player-chip">{{ p }}</span>
-              <span v-if="!s.player_names.length" class="player-chip empty">暂无玩家</span>
+              <span v-if="!s.player_names.length" class="player-chip empty">{{ s.player_count > 0 ? '昵称同步中' : '暂无玩家' }}</span>
             </div>
           </div>
           <div class="server-actions">
@@ -242,7 +242,7 @@ function region(server: ServerEntry): string {
           </div>
           <div class="server-players-list">
             <span v-for="p in s.player_names" :key="p" class="player-chip">{{ p }}</span>
-            <span v-if="!s.player_names.length" class="player-chip empty">暂无玩家</span>
+            <span v-if="!s.player_names.length" class="player-chip empty">{{ s.player_count > 0 ? '昵称同步中' : '暂无玩家' }}</span>
           </div>
         </div>
         <div class="server-list-actions">
