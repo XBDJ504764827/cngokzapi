@@ -78,7 +78,7 @@ function goLogin(): void {
 
 <style scoped>
 .navbar {
-  background-color: rgba(255, 255, 255, 0.88);
+  background-color: var(--bg-nav);
   backdrop-filter: saturate(180%) blur(10px);
   border-bottom: 1px solid var(--border-color);
   box-shadow: var(--shadow-sm);
@@ -115,7 +115,7 @@ function goLogin(): void {
   font-size: 13px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  box-shadow: 0 1px 2px rgba(29, 74, 53, 0.24);
+  box-shadow: var(--shadow-accent-sm);
 }
 
 .logo-texts {
@@ -172,7 +172,7 @@ function goLogin(): void {
   background-color: var(--accent);
   color: #fff;
   font-weight: 600;
-  box-shadow: 0 2px 8px rgba(47, 111, 79, 0.24);
+  box-shadow: var(--shadow-accent-sm);
 }
 
 .nav-link.active:hover {
@@ -200,7 +200,10 @@ function goLogin(): void {
   font-weight: 600;
   font-family: var(--font-base);
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  box-shadow: var(--shadow-accent-sm);
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .btn-steam:hover {

@@ -302,7 +302,7 @@ function region(server: ServerEntry): string {
 }
 
 .cat-chip.active .cat-count {
-  background-color: rgba(47, 111, 79, 0.14);
+  background-color: var(--ring-accent);
   color: var(--accent);
 }
 
@@ -314,7 +314,7 @@ function region(server: ServerEntry): string {
   max-width: calc(100% - 110px);
   padding: 3px 10px;
   border-radius: 999px;
-  background-color: rgba(255, 255, 255, 0.95);
+  background-color: var(--bg-card-translucent);
   box-shadow: var(--shadow-sm);
   font-size: 12px;
   font-weight: 600;
@@ -455,20 +455,20 @@ function region(server: ServerEntry): string {
   align-items: center;
   gap: 5px;
   padding: 4px 12px;
-  background-color: rgba(255, 255, 255, 0.95);
+  background-color: var(--bg-card-translucent);
   border-radius: 999px;
   box-shadow: var(--shadow-sm);
   font-size: 12px;
   font-weight: 600;
-  color: var(--tier-easy);
+  color: var(--success);
 }
 
 .status-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: var(--tier-easy);
-  box-shadow: 0 0 0 3px rgba(76, 143, 107, 0.16);
+  background-color: var(--success);
+  box-shadow: 0 0 0 3px var(--ring-success);
 }
 
 .server-card-content {

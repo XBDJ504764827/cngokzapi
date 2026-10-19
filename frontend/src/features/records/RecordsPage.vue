@@ -37,7 +37,12 @@ function onImageError(e: Event): void {
     <NEmpty v-else-if="!loading && !hasData" description="暂无记录数据" style="padding: 48px 0" />
 
     <div v-else class="records-columns">
-      <NCard v-for="mode in MODES" :key="mode" size="small">
+      <NCard
+        v-for="mode in MODES"
+        :key="mode"
+        size="small"
+        :class="`mode-${mode.toLowerCase()}`"
+      >
         <template #header>
           <span class="records-col-title">
             <span class="mode-dot" />
@@ -124,12 +129,21 @@ function onImageError(e: Event): void {
   letter-spacing: 0.02em;
 }
 
+.records-columns .records-col-title {
+  color: var(--mode-color, var(--accent));
+}
+
+/* 用模式色在卡片头部加一条顶部强调线 */
+.records-columns :deep(.n-card-header) {
+  box-shadow: inset 0 3px 0 var(--mode-color, var(--accent));
+}
+
 .mode-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(47, 111, 79, 0.14);
+  background-color: var(--mode-color, var(--accent));
+  box-shadow: 0 0 0 3px var(--mode-ring, var(--ring-accent));
 }
 
 .rec-list {
@@ -164,7 +178,7 @@ function onImageError(e: Event): void {
 
 .rec-thumb:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(28, 28, 26, 0.16);
+  box-shadow: var(--shadow-md);
 }
 
 .rec-thumb-fallback {
@@ -222,7 +236,7 @@ function onImageError(e: Event): void {
   flex-shrink: 0;
   font-size: 12px;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--mode-color, var(--accent));
 }
 
 .rec-player-wrap {
@@ -259,7 +273,7 @@ function onImageError(e: Event): void {
 }
 
 .rec-points {
-  color: #8a6a2f;
+  color: var(--accent-4);
   font-weight: 700;
 }
 

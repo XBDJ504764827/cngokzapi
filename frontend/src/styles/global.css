@@ -1,6 +1,6 @@
-/* 全局基座：沿用旧原型浅色 tokens，组件样式交给 Naive UI + 各页 scoped CSS。
-   设计约束见 PROJECT.md §2：白底 + 单一墨绿主色、细边框为主、克制干净、
-   不做科技感/竞技风；阴影只在 hover 浮起时使用。 */
+/* 全局基座：全站设计 token 唯一出口（PROJECT §2 视觉系统）。
+   主题：暖纸感浅色 + 朱砂红主色，辅以松绿 / 赭石 / 石板蓝；三模式专属色（朱砂 / 松绿 / 赭石）。
+   以「平涂 + 细边框」为主，不使用渐变、发光与霓虹；阴影克制，只用于 hover 浮起与轻微投影。 */
 * {
   margin: 0;
   padding: 0;
@@ -8,50 +8,106 @@
 }
 
 :root {
-  --bg-page: #fafaf9;
+  /* ---------- 背景与文字（暖中性色） ---------- */
+  --bg-page: #f6f3ed;
   --bg-card: #ffffff;
-  --bg-subtle: #f3f2ef;
-  --bg-hover: #efeeea;
-  --text-primary: #1c1c1a;
-  --text-secondary: #5b5a56;
-  --text-muted: #8e8c86;
-  --border-color: #e6e4df;
-  --border-strong: #d5d2cb;
-  --accent: #2f6f4f;
-  --accent-hover: #255a40;
-  --accent-pressed: #1e4a35;
-  --accent-soft: #e7f0ea;
-  /* 极浅的墨绿晕染，用于 Hero / 选中态背景，保持"只有一个主色" */
-  --accent-wash: rgba(47, 111, 79, 0.06);
-  --danger: #b5533c;
+  --bg-subtle: #efeae1;
+  --bg-hover: #e7e1d6;
+  --bg-nav: rgba(252, 250, 246, 0.88);
+  --bg-card-translucent: rgba(255, 255, 255, 0.95);
+  --tint-panel: #faf7f1;
+  --row-hover: #faf7f2;
+  --text-primary: #23201c;
+  --text-secondary: #5b544a;
+  --text-muted: #8a8276;
+  --border-color: #e4ded2;
+  --border-strong: #cfc7b8;
+
+  /* ---------- 主色：朱砂红 ---------- */
+  --accent: #c1432b;
+  --accent-hover: #a8371f;
+  --accent-pressed: #8d2c17;
+  --accent-soft: #f7e5df;
+  --accent-wash: rgba(193, 67, 43, 0.06);
+  --accent-100: #ecc4b9;
+  --tint-primary: #faeee8;
+  --ring-accent: rgba(193, 67, 43, 0.16);
+  --table-head-text: #9a3a24;
+
+  /* ---------- 辅助色：松绿 / 赭石 / 石板蓝 ---------- */
+  --accent-2: #1f6f6b;
+  --accent-2-hover: #185a57;
+  --accent-2-soft: #e0efec;
+  --accent-2-wash: rgba(31, 111, 107, 0.07);
+  --accent-3: #b07d2a;
+  --accent-3-hover: #966821;
+  --accent-3-soft: #f6ecd8;
+  --accent-4: #4b6472;
+  --accent-4-soft: #e7edf0;
+
+  /* ---------- 语义色 ---------- */
+  --success: #3f7d4e;
+  --success-soft: #e6f0e8;
+  --ring-success: rgba(63, 125, 78, 0.16);
+  --info: #2f6f8f;
+  --danger: #b02a2a;
+  --danger-soft: #f7e3e3;
+
+  /* ---------- 三模式专属色（KZT/SKZ/VNL 全站一致） ---------- */
+  --mode-kzt: #c1432b;
+  --mode-kzt-soft: #f7e5df;
+  --mode-kzt-ring: rgba(193, 67, 43, 0.16);
+  --mode-skz: #1f6f6b;
+  --mode-skz-soft: #e0efec;
+  --mode-skz-ring: rgba(31, 111, 107, 0.16);
+  --mode-vnl: #b07d2a;
+  --mode-vnl-soft: #f6ecd8;
+  --mode-vnl-ring: rgba(176, 125, 42, 0.2);
+
+  /* ---------- 字体 ---------- */
   --font-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
     'Microsoft YaHei', sans-serif;
   --font-mono: 'SF Mono', 'JetBrains Mono', 'Cascadia Mono', 'Courier New', monospace;
-  /* 与旧原型一致的圆角 / 阴影 tokens：细边框为主，阴影只用于 hover 浮起 */
+
+  /* ---------- 圆角 / 阴影（暖色调投影，阴影克制） ---------- */
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
   --radius-card: 14px;
-  --shadow-xs: 0 1px 2px rgba(28, 28, 26, 0.06);
-  --shadow-sm: 0 1px 2px rgba(28, 28, 26, 0.04);
-  --shadow-md: 0 4px 16px rgba(28, 28, 26, 0.06);
-  --shadow-lg: 0 8px 28px rgba(28, 28, 26, 0.08);
-  /* 卡片常驻微阴影（不再只有 hover 才有“浮起”感） */
-  --shadow-card: 0 1px 3px rgba(28, 28, 26, 0.06), 0 1px 2px rgba(28, 28, 26, 0.04);
-  --accent-100: #d6e8dd;
-  --tint-green: #edf3ef;
-  /* 三档难度色（原型 tokens） */
-  --tier-easy: #4c8f6b;
-  --tier-mid: #b8862f;
-  --tier-hard: #b5533c;
-  --tier-severe: #8e2a2a;
+  --shadow-xs: 0 1px 2px rgba(35, 32, 28, 0.06);
+  --shadow-sm: 0 1px 2px rgba(35, 32, 28, 0.05);
+  --shadow-md: 0 6px 18px rgba(35, 32, 28, 0.09);
+  --shadow-lg: 0 12px 32px rgba(35, 32, 28, 0.11);
+  --shadow-card: 0 1px 3px rgba(35, 32, 28, 0.05), 0 1px 2px rgba(35, 32, 28, 0.04);
+  --shadow-accent: 0 6px 18px rgba(193, 67, 43, 0.24);
+  --shadow-accent-sm: 0 2px 8px rgba(193, 67, 43, 0.22);
+
+  /* ---------- 名次奖牌（平涂） ---------- */
+  --medal-gold: #d9a441;
+  --medal-silver: #b9bfc9;
+  --medal-bronze: #b07b4a;
+
+  /* ---------- 难度色（T1→T8：由冷到暖、越高越深，与主色统一的土色系） ---------- */
+  --tier-1: #4f8a62;
+  --tier-2: #6e8f3c;
+  --tier-3: #b08a22;
+  --tier-4: #c46a1e;
+  --tier-5: #b5462a;
+  --tier-6: #9e2b2b;
+  --tier-7: #7c2536;
+  --tier-8: #5a3b63;
+  /* 兼容旧分组 token */
+  --tier-easy: var(--tier-1);
+  --tier-mid: var(--tier-3);
+  --tier-hard: var(--tier-5);
+  --tier-severe: var(--tier-7);
 }
 
 body {
   font-family: var(--font-base);
   background-color: var(--bg-page);
-  /* 顶部极浅墨绿晕染：避免整页纯白“太素” */
-  background-image: radial-gradient(1000px 420px at 50% -200px, rgba(47, 111, 79, 0.1), transparent 70%);
+  /* 极轻的纸感纵向渐变，不做事发光的「极光」色块 */
+  background-image: linear-gradient(180deg, #f8f5ef 0%, #f3efe7 100%);
   background-repeat: no-repeat;
   color: var(--text-primary);
   line-height: 1.6;
@@ -61,10 +117,10 @@ body {
 }
 
 ::selection {
-  background-color: rgba(47, 111, 79, 0.16);
+  background-color: rgba(193, 67, 43, 0.16);
 }
 
-/* 键盘可访问性：只在键盘聚焦时出现墨绿描边（鼠标点击不出现） */
+/* 键盘可访问性：只在键盘聚焦时出现主色描边（鼠标点击不出现） */
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -75,6 +131,45 @@ body {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 24px;
+}
+
+/* ========== 全站色彩工具类：模式 / 统计卡色调 ========== */
+.mode-kzt {
+  --mode-color: var(--mode-kzt);
+  --mode-soft: var(--mode-kzt-soft);
+  --mode-ring: var(--mode-kzt-ring);
+}
+
+.mode-skz {
+  --mode-color: var(--mode-skz);
+  --mode-soft: var(--mode-skz-soft);
+  --mode-ring: var(--mode-skz-ring);
+}
+
+.mode-vnl {
+  --mode-color: var(--mode-vnl);
+  --mode-soft: var(--mode-vnl-soft);
+  --mode-ring: var(--mode-vnl-ring);
+}
+
+.tone-rust {
+  --stat-color: var(--accent);
+  --stat-soft: var(--accent-soft);
+}
+
+.tone-teal {
+  --stat-color: var(--accent-2);
+  --stat-soft: var(--accent-2-soft);
+}
+
+.tone-ochre {
+  --stat-color: var(--accent-3);
+  --stat-soft: var(--accent-3-soft);
+}
+
+.tone-slate {
+  --stat-color: var(--accent-4);
+  --stat-soft: var(--accent-4-soft);
 }
 
 /* ========== 页面标题区：标题 + 次级说明（右侧可放操作/计数） ========== */
@@ -103,13 +198,13 @@ body {
   gap: 6px;
   margin-bottom: 12px;
   padding: 3px 10px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--accent-100);
   border-radius: 999px;
-  background-color: var(--bg-card);
+  background-color: var(--accent-soft);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
-  color: var(--accent);
+  color: var(--accent-hover);
 }
 
 .page-title {
@@ -159,7 +254,7 @@ body {
   color: var(--text-primary);
 }
 
-/* 区块标题左侧墨绿竖条：给长页面建立视觉节奏 */
+/* 区块标题左侧主色竖条：给长页面建立视觉节奏 */
 .section-title::before {
   content: '';
   width: 4px;
@@ -212,7 +307,7 @@ body {
   gap: 12px;
   padding: 15px 20px;
   border-bottom: 1px solid var(--border-color);
-  background-image: linear-gradient(180deg, #f4f8f5, #ffffff);
+  background-color: var(--tint-panel);
 }
 
 .panel-title {
@@ -283,7 +378,7 @@ body {
 
 .chip-accent {
   background-color: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-hover);
   font-weight: 600;
 }
 
@@ -293,20 +388,20 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* ========== 表格：表头浅绿底 + 行 hover（统一全站观感） ========== */
+/* ========== 表格：表头浅朱砂底 + 行 hover（统一全站观感） ========== */
 .n-data-table.n-data-table .n-data-table-th {
-  background-color: var(--tint-green);
+  background-color: var(--tint-primary);
   font-weight: 700;
 }
 
 .n-data-table.n-data-table .n-data-table-th__title {
-  color: #3f5b4b;
+  color: var(--table-head-text);
   font-size: 13px;
   font-weight: 700;
 }
 
 .n-data-table.n-data-table .n-data-table-tr:hover .n-data-table-td {
-  background-color: #f3f7f4;
+  background-color: var(--row-hover);
 }
 
 /* ========== 按钮：明确的“可点击”质感（Naive 组件用双/三倍类名提高优先级） ========== */
@@ -325,20 +420,23 @@ body {
 
 .n-button.n-button:not(.n-button--disabled):not(.n-button--text-type):not(.n-button--quaternary-type):hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(28, 28, 26, 0.1);
+  box-shadow: 0 4px 12px rgba(35, 32, 28, 0.1);
 }
 
+/* 主操作按钮：平涂主色 + 主色投影（不做渐变） */
 .n-button.n-button.n-button--primary-type:not(.n-button--disabled) {
-  box-shadow: 0 2px 8px rgba(47, 111, 79, 0.28);
+  background-color: var(--accent);
+  box-shadow: var(--shadow-accent-sm);
 }
 
 .n-button.n-button.n-button--primary-type:not(.n-button--disabled):hover {
-  box-shadow: 0 6px 18px rgba(47, 111, 79, 0.34);
+  background-color: var(--accent-hover);
+  box-shadow: 0 6px 18px rgba(193, 67, 43, 0.3);
 }
 
-/* ========== 卡片头部：与面板一致的浅绿渐变，增加层次 ========== */
+/* ========== 卡片头部：与面板一致的浅底，增加层次 ========== */
 .n-card.n-card > .n-card-header {
-  background-image: linear-gradient(180deg, #f4f8f5, #ffffff);
+  background-color: var(--tint-panel);
 }
 
 /* ========== 路由切换的轻微淡入（克制，不做位移动画） ========== */

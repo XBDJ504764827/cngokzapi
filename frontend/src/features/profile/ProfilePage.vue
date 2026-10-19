@@ -282,7 +282,7 @@ function onImageError(e: Event): void {
           v-for="card in modeCards"
           :key="card.mode"
           class="panel mode-card"
-          :class="{ 'is-empty': !card.score }"
+          :class="[`mode-${card.mode.toLowerCase()}`, { 'is-empty': !card.score }]"
         >
           <div class="mode-head">
             <span class="mode-badge">{{ card.mode }}</span>
@@ -362,7 +362,7 @@ function onImageError(e: Event): void {
       </div>
 
       <div class="recent-columns">
-        <div v-for="col in recentByMode" :key="col.mode" class="panel recent-col">
+        <div v-for="col in recentByMode" :key="col.mode" class="panel recent-col" :class="`mode-${col.mode.toLowerCase()}`">
           <div class="panel-head">
             <div class="rec-head">
               <span class="mode-dot" />
@@ -629,6 +629,7 @@ function onImageError(e: Event): void {
   flex-direction: column;
   gap: 16px;
   padding: 18px;
+  border-top: 3px solid var(--mode-color, var(--accent));
 }
 
 .mode-card.is-empty {
@@ -647,7 +648,7 @@ function onImageError(e: Event): void {
   align-items: center;
   padding: 3px 12px;
   border-radius: 999px;
-  background-color: var(--accent);
+  background-color: var(--mode-color, var(--accent));
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -662,7 +663,7 @@ function onImageError(e: Event): void {
 .mode-rank strong {
   font-size: 15px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--mode-color, var(--text-primary));
 }
 
 .mode-rank.muted {
@@ -686,7 +687,7 @@ function onImageError(e: Event): void {
   font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: var(--accent);
+  color: var(--mode-color, var(--accent));
 }
 
 .level-rt {
@@ -708,7 +709,7 @@ function onImageError(e: Event): void {
 }
 
 .level-seg.on {
-  background-color: var(--accent);
+  background-color: var(--mode-color, var(--accent));
 }
 
 .level-next {
@@ -724,7 +725,7 @@ function onImageError(e: Event): void {
   padding: 12px 14px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  background-color: var(--tint-green);
+  background-color: var(--mode-soft, var(--tint-primary));
 }
 
 .points-label {
@@ -800,8 +801,8 @@ function onImageError(e: Event): void {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(47, 111, 79, 0.14);
+  background-color: var(--mode-color, var(--accent));
+  box-shadow: 0 0 0 3px var(--mode-ring, var(--ring-accent));
 }
 
 .rec-list {
@@ -821,7 +822,7 @@ function onImageError(e: Event): void {
 }
 
 .rec-row:hover {
-  background-color: #f6f9f7;
+  background-color: var(--row-hover);
 }
 
 .rec-thumb {
@@ -839,7 +840,7 @@ function onImageError(e: Event): void {
 
 .rec-thumb:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(28, 28, 26, 0.16);
+  box-shadow: var(--shadow-md);
 }
 
 .rec-thumb-fallback {
@@ -912,7 +913,7 @@ function onImageError(e: Event): void {
 }
 
 .rec-points {
-  color: #8a6a2f;
+  color: var(--accent-4);
   font-weight: 700;
 }
 

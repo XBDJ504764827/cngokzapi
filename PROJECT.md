@@ -8,7 +8,7 @@
 
 为中国 GOKZ 社区（CNGOKZ）提供后端 API + 官方网站。正式技术栈：
 
-- 前端：Vue 3 + TypeScript + Vite，组件库 Naive UI（主题覆写为墨绿主色）；
+- 前端：Vue 3 + TypeScript + Vite，组件库 Naive UI（主题覆写为朱砂红主色）；
 - 后端：Rust + Axum 模块化单体；
 - 数据库：PostgreSQL；缓存：Redis。
 
@@ -77,31 +77,37 @@
 
 设计约束（必须保留）：
 
-- 浅色简约主题，白底 + 单一墨绿主色（Naive UI 主题覆写 `#2F6F4F`）；以细边框 + 克制的层级阴影
-  建立层次，不使用发光/霓虹；关键操作（按钮）必须有明确的填充或描边，不得与普通文本同弱。
-- 克制干净，不做科技感/竞技风。
+- 浅色简约主题：以**暖调朱砂红（`#C1432B`）为主色**，辅以松绿 `#1F6F6B`、赭石 `#B07D2A`、
+  石板蓝 `#4B6472`，并用 KZT/SKZ/VNL 三模式专属色建立区分；以细边框 + 克制的层级阴影建立层次，
+  **平涂不上渐变、不使用发光/霓虹**；关键操作（按钮）必须有明确的填充或描边，不得与普通文本同弱。
+- 克制干净，不做科技感/竞技风（多色只用于语义区分与点缀，不堆切色块与渐变）。
 - 响应式布局（基础支持），信息层级清晰。
 - 模式：KZT / SKZ / VNL；字体：Inter。
 - 底部栏保持紧凑（内边距与间距已压薄，不得随意加高）。
 - 顶部导航栏：链接永不断行，窄屏横向滚动或换两行，
   不得出现文字重叠；新增导航项时同步验证 1100 / 860 / 600 三档断点。
 
-视觉系统（2026-10-18 强化后，新增页面必须复用）：
+视觉系统（2026-10-19 暖调色彩体系重做后，新增页面必须复用）：
 
-- 设计 token 唯一出口 `frontend/src/styles/global.css`（颜色/圆角/阴影/难度色/字体），
-  Naive UI 覆写唯一出口 `frontend/src/app/theme.ts`；页面不得自造颜色与阴影值。
+- 设计 token 唯一出口 `frontend/src/styles/global.css`（颜色/圆角/阴影/难度色/字体/模式色/奖牌色），
+  Naive UI 覆写唯一出口 `frontend/src/app/theme.ts`；页面不得自造颜色与阴影值，**不得新增渐变**。
+- 颜色语义：`--accent` 朱砂红主色（链接/主按钮/表头）、`--accent-2/3/4` 松绿/赭石/石板蓝辅助色、
+  `--success/--info/--danger` 语义色；三模式 `--mode-kzt/--mode-skz/--mode-vnl`（朱砂/松绿/赭石），
+  配合工具类 `.mode-kzt/.mode-skz/.mode-vnl` 输出 `--mode-color/--mode-soft/--mode-ring`；
+  统计卡等用 `.tone-rust/.tone-teal/.tone-ochre/.tone-slate` 输出 `--stat-color/--stat-soft`。
+- 难度色为 8 档 `--tier-1`～`--tier-8`（由冷到暖、越高越深，土色系），`.tier-1`～`.tier-8` 直接引用。
 - 页面骨架：`.page-head`（可配 `.page-head-row` + `.page-head-actions`，标题区放计数徽章）
-  + `.panel`/`.panel-head`/`.panel-body`（表格与榜单统一容器，常驻微阴影、表头浅绿渐变）；
+  + `.panel`/`.panel-head`/`.panel-body`（表格与榜单统一容器，常驻微阴影、表头浅靛蓝渐变）；
   统计卡等可点击卡片加 `.hover-lift`。
-- 交互层次：导航当前项为**墨绿实心**；主操作按钮（如「加入游戏」）用 `type="primary"`，
-  次操作用默认按钮（白底 + 强描边 + 微阴影），hover 浮起；玩家名等实体用墨绿文字链接；
-  表格表头浅绿底 + 墨绿字。
+- 交互层次：导航当前项为**主色平涂实心**；主操作按钮（如「加入游戏」「查询」）用 `type="primary"`
+  （全局覆写为主色平涂 + 主色投影），次操作用默认按钮（白底 + 强描边 + 微阴影），hover 浮起；
+  玩家名等实体用主色文字链接；表格表头浅朱砂底 + 朱砂字。
 - 公共组件：`PlayerCell`（头像 + 名称 + SteamID64；名称默认链到资料页，`compact` 可隐藏
-  SteamID64/缩小头像）、`RankBadge`（前 3 名金银铜名次徽章）；表格列渲染用 `h()` 创建的类
-  不会被 scoped CSS 命中，必须用组件或 `:deep()`；Boolean prop 未传时 Vue 会转为 false，
-  需要默认 true 请用 `withDefaults`。
-- 地图/服务器缩略图必须提供缺图占位（显示地图名/图标）；Hero 使用极浅墨绿晕染，
-  不做荧光/科技纹理。
+  SteamID64/缩小头像）、`RankBadge`（前 3 名金银铜名次徽章，用 `--medal-*` 渐变）；
+  表格列渲染用 `h()` 创建的类不会被 scoped CSS 命中，必须用组件或 `:deep()`；
+  Boolean prop 未传时 Vue 会转为 false，需要默认 true 请用 `withDefaults`。
+- 地图/服务器缩略图必须提供缺图占位（显示地图名/图标）；Hero 使用极浅的朱砂单色晕染，
+  不做多色「极光」色块与荧光/科技纹理。
 
 待后端支持的能力（当前为模拟数据）：
 
@@ -614,6 +620,13 @@ POST /api/v2.0/records                 X-ApiKey: <key>
   Legend 10.00，`rating < 1` 未评级，与 GOKZ.TOP 口径一致）；最近成绩区块保持不变。
   后端新增 `players.country`（`0006_player_country.sql`）与 GOKZ.TOP `GET /v1/players/{steamid64}`
   客户端；玩家同步一并写回头像与国籍，并重置 `player` 任务回填历史数据。
+- 当前：全站色彩体系重做（2026年10月19日，`develop`）：由「白底 + 单一墨绿」改为暖调多色体系——
+  朱砂红主色 + 松绿/赭石/石板蓝辅助色 + KZT/SKZ/VNL 三模式专属色；全局改为**平涂无渐变**，
+  `global.css` / `theme.ts` 重写，新增模式与色调工具类、8 档土色系难度色、平涂奖牌色、暖纸感背景；
+  导航/主按钮/Logo 改为主色平涂，首页四张统计卡分色，榜单/最新记录/个人资料/地图详情按模式着色；
+  触及 `DefaultLayout`、`HomePage`、`LeaderboardPage`、`RecordsPage`、`ProfilePage`、`MapsPage`、
+  `MapDetailPage`、`ServersPage`、`RankBadge` 与两份 token 文件；无 API/DB 变化。
+  （首版为靛蓝/紫罗兰渐变方案，因「AI 感过重」已改为本暖调平涂方案。）
 - 下一步（按序）：
   1. ~~旧阶段（vanilla 原型 + 单文件后端）~~ ✅ 已归档/替换
   2. ~~数据接入落地（§9）：`sources/` + `sync_jobs` + `scoring` + `0002/0003` + `ingest`；

@@ -221,27 +221,43 @@ function openMap(id: number): void {
   box-shadow: var(--shadow-sm);
 }
 
-.tier-1,
+.tier-1 {
+  background-color: var(--tier-1);
+  color: #fff;
+}
+
 .tier-2 {
-  background-color: var(--tier-easy);
+  background-color: var(--tier-2);
   color: #fff;
 }
 
-.tier-3,
+.tier-3 {
+  background-color: var(--tier-3);
+  color: #fff;
+}
+
 .tier-4 {
-  background-color: var(--tier-mid);
+  background-color: var(--tier-4);
   color: #fff;
 }
 
-.tier-5,
+.tier-5 {
+  background-color: var(--tier-5);
+  color: #fff;
+}
+
 .tier-6 {
-  background-color: var(--tier-hard);
+  background-color: var(--tier-6);
   color: #fff;
 }
 
-.tier-7,
+.tier-7 {
+  background-color: var(--tier-7);
+  color: #fff;
+}
+
 .tier-8 {
-  background-color: var(--tier-severe);
+  background-color: var(--tier-8);
   color: #fff;
 }
 

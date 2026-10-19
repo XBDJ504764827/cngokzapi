@@ -29,17 +29,17 @@ function rankClass(rank: number | null): string {
 }
 
 .rank-1 {
-  background-color: #ffd700;
-  color: #000;
+  background-color: var(--medal-gold);
+  color: #4a3200;
 }
 
 .rank-2 {
-  background-color: #c0c0c0;
-  color: #000;
+  background-color: var(--medal-silver);
+  color: #2c3444;
 }
 
 .rank-3 {
-  background-color: #cd7f32;
+  background-color: var(--medal-bronze);
   color: #fff;
 }
 </style>

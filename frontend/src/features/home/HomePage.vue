@@ -18,10 +18,15 @@ const ICON_RECORDS = 'M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z'
 
 // 布局不变：4 个统计卡 + 「关于 CNGOKZ」卡 + 「最新公告」列表
 const cards = computed(() => [
-  { label: '活跃玩家', value: num(data.value?.players), icon: ICON_PLAYERS },
-  { label: '地图总数', value: num(data.value?.maps), icon: ICON_MAPS },
-  { label: '在线服务器', value: num(data.value?.servers_online), icon: ICON_SERVERS },
-  { label: '总记录数', value: num(data.value?.records), icon: ICON_RECORDS },
+  { label: '活跃玩家', value: num(data.value?.players), icon: ICON_PLAYERS, tone: 'tone-rust' },
+  { label: '地图总数', value: num(data.value?.maps), icon: ICON_MAPS, tone: 'tone-teal' },
+  {
+    label: '在线服务器',
+    value: num(data.value?.servers_online),
+    icon: ICON_SERVERS,
+    tone: 'tone-slate',
+  },
+  { label: '总记录数', value: num(data.value?.records), icon: ICON_RECORDS, tone: 'tone-ochre' },
 ])
 
 function num(n: number | undefined): string {
@@ -47,7 +52,7 @@ const updatedAt = computed(() => {
 
   <NGrid cols="1 s:2 m:4" :x-gap="14" responsive="screen">
     <NGi v-for="c in cards" :key="c.label">
-      <NCard class="stat-card hover-lift">
+      <NCard class="stat-card hover-lift" :class="c.tone">
         <span class="stat-icon">
           <svg
             width="18"
@@ -120,7 +125,7 @@ const updatedAt = computed(() => {
 </template>
 
 <style scoped>
-/* Hero：用极浅的墨绿晕染建立首屏层次，仍然保持白底简约 */
+/* Hero：极浅的单色暖调晕染，不做事发光的多色「极光」 */
 .hero {
   position: relative;
   padding: 8px 0 4px;
@@ -129,9 +134,9 @@ const updatedAt = computed(() => {
 .hero::before {
   content: '';
   position: absolute;
-  inset: -60px -80px auto -80px;
-  height: 220px;
-  background: radial-gradient(520px 200px at 18% 40%, var(--accent-wash), transparent 70%);
+  inset: -50px 0 auto 0;
+  height: 200px;
+  background: radial-gradient(560px 200px at 16% 42%, var(--accent-wash), transparent 72%);
   pointer-events: none;
   z-index: -1;
 }
@@ -166,9 +171,10 @@ const updatedAt = computed(() => {
 }
 
 .hero-btn-primary {
-  border-color: var(--accent);
+  border-color: transparent;
   background-color: var(--accent);
   color: #fff;
+  box-shadow: var(--shadow-accent-sm);
 }
 
 .hero-btn-primary:hover {
@@ -188,8 +194,13 @@ const updatedAt = computed(() => {
   height: 34px;
   margin-bottom: 14px;
   border-radius: var(--radius-sm);
-  background-color: var(--accent-soft);
-  color: var(--accent);
+  background-color: var(--stat-soft, var(--accent-soft));
+  color: var(--stat-color, var(--accent));
+}
+
+/* 统计数值跟随卡片色调，四张卡各有颜色 */
+.stat-card :deep(.n-statistic-value__content) {
+  color: var(--stat-color, var(--accent));
 }
 
 .section-card {

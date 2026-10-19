@@ -10,6 +10,32 @@
 
 ---
 
+## 2026年10月19日 14时44分03秒 全站色彩体系重做：暖调朱砂红 + 松绿/赭石/石板蓝（平涂无渐变）
+
+- 背景：原设计为「白底 + 单一墨绿主色」，长时间浏览易审美疲劳；首次多色方案（靛蓝/紫罗兰渐变）
+  被反馈「AI 感过重」，故重做为暖调、平涂、无渐变的编辑风配色。
+- 变更内容：
+  - `styles/global.css` 重写 token：主色为朱砂红 `#C1432B`，辅助色松绿 `#1F6F6B` / 赭石 `#B07D2A` /
+    石板蓝 `#4B6472`；语义色 `--success/--info/--danger`；三模式色 `--mode-kzt/skz/vnl`（朱砂/松绿/赭石）
+    与工具类 `.mode-*`；色调工具类 `.tone-rust/.tone-teal/.tone-ochre/.tone-slate`；
+    难度色 8 档 `--tier-1`～`--tier-8` 改为土色系；奖牌改为平涂 `--medal-*`；背景为暖纸感纵向渐变。
+  - `app/theme.ts` 同步新主色/成功/警告/错误/信息色，表头改浅朱砂底，按钮聚焦环改朱砂。
+  - **移除全部渐变与多色「极光」晕染**：导航当前项、主按钮、Logo、Hero 主按钮、WR 徽章、
+    视图切换、区块标题竖条、奖牌均改为平涂；Hero 只保留极浅的朱砂单色晕染。
+  - 各页按模式/语义着色：首页 4 张统计卡分用朱砂/松绿/赭石/石板蓝；排行榜三列、最新记录三列、
+    个人资料三模式卡与最近成绩列、地图详情三模式榜单与模式切换均按 KZT/SKZ/VNL 着色。
+- 涉及文件：`frontend/src/styles/global.css`、`frontend/src/app/theme.ts`、
+  `frontend/src/layouts/DefaultLayout.vue`、`frontend/src/components/RankBadge.vue`、
+  `frontend/src/features/home/HomePage.vue`、`frontend/src/features/leaderboard/LeaderboardPage.vue`、
+  `frontend/src/features/records/RecordsPage.vue`、`frontend/src/features/profile/ProfilePage.vue`、
+  `frontend/src/features/maps/{MapsPage,MapDetailPage}.vue`、
+  `frontend/src/features/servers/ServersPage.vue`、`PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无。
+- 测试与结果（北京时间）：`npm run build` 通过；Playwright 核对 1440 / 980 / 390 三档，
+  全站 10 个页面无控制台报错、无新增横向滚动；首页/榜单/地图/地图详情/服务器/记录/资料/封禁/玩家/登录
+  均按新配色渲染，三模式颜色区分明确、难度徽章 8 档可辨；`/records`、`/bans` 在 390px 的横向溢出
+  为改版前已有问题（已用 git stash 对比确认，与本次配色无关）。
+
 ## 2026年10月19日 14时15分41秒 个人资料页重设计：身份卡 + 三模式等级档案（国旗 / 头像 / 评级）
 
 - 背景：个人资料页此前是「头像英雄条 + 模式积分表格」，信息密度低、表格单调；用户要求突出头像、

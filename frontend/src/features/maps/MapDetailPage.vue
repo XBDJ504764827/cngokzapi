@@ -194,7 +194,7 @@ const tpColumns = boardColumns(true)
         <span class="section-count">PRO = 无存读点 · TP = 含存读点</span>
       </div>
       <div class="wr-summary">
-        <div v-for="b in data.boards" :key="b.mode" class="wr-mode panel">
+        <div v-for="b in data.boards" :key="b.mode" class="wr-mode panel" :class="`mode-${b.mode.toLowerCase()}`">
           <div class="wr-mode-head">
             <span class="mode-dot" />
             {{ b.mode }}
@@ -229,7 +229,7 @@ const tpColumns = boardColumns(true)
         v-for="m in MODES"
         :key="m"
         class="mode-tab"
-        :class="{ active: activeMode === m }"
+        :class="[`mode-${m.toLowerCase()}`, { active: activeMode === m }]"
         @click="activeMode = m"
       >
         <span class="mode-dot" />
@@ -381,27 +381,43 @@ const tpColumns = boardColumns(true)
   color: var(--text-muted);
 }
 
-.tier-1,
+.tier-1 {
+  background-color: var(--tier-1);
+  color: #fff;
+}
+
 .tier-2 {
-  background-color: var(--tier-easy);
+  background-color: var(--tier-2);
   color: #fff;
 }
 
-.tier-3,
+.tier-3 {
+  background-color: var(--tier-3);
+  color: #fff;
+}
+
 .tier-4 {
-  background-color: var(--tier-mid);
+  background-color: var(--tier-4);
   color: #fff;
 }
 
-.tier-5,
+.tier-5 {
+  background-color: var(--tier-5);
+  color: #fff;
+}
+
 .tier-6 {
-  background-color: var(--tier-hard);
+  background-color: var(--tier-6);
   color: #fff;
 }
 
-.tier-7,
+.tier-7 {
+  background-color: var(--tier-7);
+  color: #fff;
+}
+
 .tier-8 {
-  background-color: var(--tier-severe);
+  background-color: var(--tier-8);
   color: #fff;
 }
 
@@ -457,14 +473,15 @@ const tpColumns = boardColumns(true)
   margin-bottom: 10px;
   font-size: 14px;
   font-weight: 700;
+  color: var(--mode-color, var(--accent));
 }
 
 .mode-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(47, 111, 79, 0.14);
+  background-color: var(--mode-color, var(--accent));
+  box-shadow: 0 0 0 3px var(--mode-ring, var(--ring-accent));
 }
 
 .wr-item {
@@ -542,14 +559,15 @@ const tpColumns = boardColumns(true)
 }
 
 .mode-tab:hover {
-  border-color: var(--accent);
-  color: var(--text-primary);
+  border-color: var(--mode-color, var(--accent));
+  color: var(--mode-color, var(--accent));
 }
 
 .mode-tab.active {
-  background-color: var(--accent);
-  border-color: var(--accent);
+  background-color: var(--mode-color, var(--accent));
+  border-color: var(--mode-color, var(--accent));
   color: #fff;
+  box-shadow: 0 2px 10px rgba(27, 33, 48, 0.14);
 }
 
 .mode-tab.active .mode-dot {

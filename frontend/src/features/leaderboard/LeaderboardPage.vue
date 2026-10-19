@@ -87,7 +87,12 @@ const columns = computed(() =>
     <NAlert v-if="error" type="error" style="margin-bottom: 12px">{{ error }}</NAlert>
 
     <div class="lb-columns">
-      <div v-for="col in columns" :key="col.mode" class="panel lb-panel">
+      <div
+        v-for="col in columns"
+        :key="col.mode"
+        class="panel lb-panel"
+        :class="`mode-${col.mode.toLowerCase()}`"
+      >
         <div class="panel-head">
           <div class="lb-head">
             <span class="mode-dot" />
@@ -151,6 +156,15 @@ const columns = computed(() =>
   margin-top: 0;
 }
 
+/* 每列用对应模式色做顶部强调条 */
+.lb-panel {
+  border-top: 3px solid var(--mode-color, var(--accent));
+}
+
+.lb-head .panel-title {
+  color: var(--mode-color, var(--accent));
+}
+
 .lb-head {
   display: flex;
   align-items: center;
@@ -161,8 +175,8 @@ const columns = computed(() =>
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(47, 111, 79, 0.14);
+  background-color: var(--mode-color, var(--accent));
+  box-shadow: 0 0 0 3px var(--mode-ring, var(--ring-accent));
 }
 
 .lb-list {
@@ -182,7 +196,7 @@ const columns = computed(() =>
 }
 
 .lb-row:hover {
-  background-color: #f6f9f7;
+  background-color: var(--row-hover);
 }
 
 .lb-avatar {
@@ -228,7 +242,7 @@ const columns = computed(() =>
   flex-shrink: 0;
   font-size: 13px;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--mode-color, var(--accent));
 }
 
 .lb-meta {
@@ -255,7 +269,7 @@ const columns = computed(() =>
   border-top: 1px solid var(--border-color);
   font-size: 12px;
   color: var(--text-muted);
-  background-color: #fbfcfb;
+  background-color: var(--bg-subtle);
 }
 
 @media (max-width: 1080px) {
