@@ -10,6 +10,36 @@
 
 ---
 
+## 2026年10月19日 18时57分42秒 排行榜全量导入 + 服务端分页；服务器列表排除 CS2
+
+- 背景：排行榜只导入了每个模式前 200 名，而上游实际有 KZT 103,336 / SKZ 9,415 / VNL 3,443 人；
+  服务器列表混入了 CS2（appid 730，541 台在线）的非本站目标服务器。
+- 变更内容：
+  - 排行榜全量导入：`run_leaderboard` 支持 `:full` 键分页拉到空（每页 100）；
+    定时策略改为「前 1000 名每 10 分钟 + 全量每 6 小时」；迁移 `0011` 入队三模式全量任务。
+  - 性能：新增 `upsert_leaderboard_batch`（`jsonb_to_recordset`，每页 100 条一次写入
+    `players` + `player_scores`），全量导入从逐行 ~25 行/秒提升到 ~100 行/秒。
+  - 后端 `GET /api/v1/leaderboard` 改为分页信封
+    `{ data, pagination: { page, per_page, total } }`，新增 `page/per_page/query/sort/activity`：
+    `sort` = points/maps/avg/rating，`activity` = all/7/30/inactive；rank 为跨分页名次。
+  - 前端排行榜改为服务端分页：每列每页 50、独立分页器；搜索（300ms 防抖）/活跃度/排序
+    全部服务端执行；总数显示真实人数；移除原来的客户端过滤与前 50 截断。
+  - 全量导入时为每模式前 500 名补头像/国籍（`player_profile`，24h 内不重复）。
+  - 服务器列表与首页统计排除 CS2：`COALESCE(appid, 4465480) <> 730`，只保留 CS:GO KZ 服。
+- 涉及文件：`backend/src/modules/leaderboard/{dto,models,repository,service,handlers}.rs`、
+  `backend/src/modules/sync/{jobs,repository,worker}.rs`、
+  `backend/migrations/0011_leaderboard_full.sql`、
+  `backend/src/modules/servers/repository.rs`、`backend/src/modules/stats/repository.rs`、
+  `frontend/src/features/leaderboard/{api.ts,types.ts,LeaderboardPage.vue}`、
+  `PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无表结构变更；`0011` 仅入队全量任务；`/leaderboard` 响应改为分页信封。
+- 测试与结果（北京时间）：`cargo fmt`/`build`/`clippy -D warnings`、`cargo test`（30 passed）、
+  `npm run build` 全过；全量导入完成：KZT **103,336（与上游一致）**、SKZ 9,432、VNL 3,470
+  （SKZ/VNL 含少量历史残留行，与上游 9,415/3,443 相差 17/27）；`players` 表 105,653。
+  接口耗时：默认 0.14s、搜索 0.4s、活跃度 0.6s、深分页 1.4s；
+  Playwright 验证三列总数/分页/第 2 页名次（#51）/搜索/Rating 排序均正常，无报错；
+  服务器页只显示 68 台 CS:GO 服（实时波动），首页在线服务器计数同口径。
+
 ## 2026年10月19日 18时10分10秒 SSE 页面秒级自动刷新（Phase 5）
 
 - 背景：Phase 1-4 已把服务端数据更新压到 10s–10min，但浏览器仍需手动刷新/切换页面才能看到变化。

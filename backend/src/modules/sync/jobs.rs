@@ -130,6 +130,8 @@ pub async fn run_maps(pool: &PgPool, src: &SourceClient) -> Result<usize, JobErr
 const LEADERBOARD_PAGE: i64 = 100;
 /// 每个模式为前 N 名额外入队「玩家档案」同步，补齐记录数/最近游玩/本地汇总分。
 const ENRICH_TOP: usize = 60;
+/// 全量导入时额外补头像/国籍的头部玩家数（按模式）。
+const PROFILE_ENRICH_TOP: usize = 500;
 
 /// 拉取某模式玩家榜前 `limit` 名（自动按 100 分页），写 players + player_scores。
 pub async fn run_leaderboard(
@@ -143,13 +145,15 @@ pub async fn run_leaderboard(
     let mut n = 0;
     let mut offset = 0i64;
     let mut enrich: Vec<String> = Vec::new();
+    let mut profile_enrich: Vec<String> = Vec::new();
     while offset < limit {
         let want = LEADERBOARD_PAGE.min(limit - offset);
         let page = client.leaderboard(mode, want, offset).await?;
         if let Some(total) = page.count {
-            tracing::debug!(mode, upstream_total = total, "上游榜单总人数");
+            tracing::info!(mode, upstream_total = total, "上游榜单总人数");
         }
         let got = page.data.len() as i64;
+        let mut batch: Vec<repository::LeaderboardRow<'_>> = Vec::with_capacity(page.data.len());
         for row in &page.data {
             let Some(steam_id) = row.player.steamid64.parse::<i64>().ok() else {
                 continue;
@@ -157,26 +161,23 @@ pub async fn run_leaderboard(
             if enrich.len() < ENRICH_TOP {
                 enrich.push(row.player.steamid64.clone());
             }
-            repository::upsert_player(pool, steam_id, &row.player.display_name).await?;
-            repository::upsert_score(
-                pool,
-                &ScoreUpsert {
-                    steam_id,
-                    mode,
-                    points: row.points,
-                    rank: row.rank.or(row.global_rank),
-                    rating: row.rating,
-                    maps_completed: row.unique_map_finishes,
-                    wrs_nub: row.wrs_nub,
-                    wrs_pro: row.wrs_pro,
-                    records_900_plus: row.records_900_plus,
-                    records_800_plus: row.records_800_plus,
-                    region: None,
-                },
-            )
-            .await?;
-            n += 1;
+            if profile_enrich.len() < PROFILE_ENRICH_TOP {
+                profile_enrich.push(row.player.steamid64.clone());
+            }
+            batch.push(repository::LeaderboardRow {
+                steam_id,
+                name: &row.player.display_name,
+                points: row.points,
+                rank: row.rank.or(row.global_rank),
+                rating: row.rating,
+                maps_completed: row.unique_map_finishes,
+                wrs_nub: row.wrs_nub,
+                wrs_pro: row.wrs_pro,
+                records_900_plus: row.records_900_plus,
+                records_800_plus: row.records_800_plus,
+            });
         }
+        n += repository::upsert_leaderboard_batch(pool, mode, &batch).await?;
         offset += got;
         if got < want || got == 0 {
             break;
@@ -185,6 +186,11 @@ pub async fn run_leaderboard(
     // 榜单前 N 名补全档案与 PB（6 小时内不重复入队，避免 10 分钟刷新时反复拉取）
     for steamid64 in enrich {
         super::queue::enqueue_if_stale(pool, super::KIND_PLAYER, &steamid64, 6 * 3600).await?;
+    }
+    // 头部玩家的头像/国籍补齐（24 小时内不重复），避免全量导入后大面积占位图
+    for steamid64 in profile_enrich {
+        super::queue::enqueue_if_stale(pool, super::KIND_PLAYER_PROFILE, &steamid64, 24 * 3600)
+            .await?;
     }
     events.emit("leaderboard", "updated", None);
     Ok(n)

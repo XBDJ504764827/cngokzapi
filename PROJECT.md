@@ -26,11 +26,12 @@
 
 1. 首页：社区统计（4 个统计卡，真实数据）、「关于 CNGOKZ」介绍卡、「最新公告」列表
    （位置＝介绍卡之后；当前为静态内容，见 `frontend/src/features/home/announcements.ts`）。
-2. 排行榜：**KZT / SKZ / VNL 三模式同页并排**（各约 200 人，独立计分；每列展示前 50 名），
+2. 排行榜：**KZT / SKZ / VNL 三模式同页并排**（全量导入：KZT≈10.3 万 / SKZ≈9.4 千 /
+   VNL≈3.4 千，独立计分；每列每页 50 人、独立分页），
    每行含名次徽章、头像、名称（链接到资料页）、总分、完成地图、记录数、平均分、最近游玩；
-   支持名称模糊 / SteamID64 子串搜索、活跃度筛选（近 7 / 30 天、超 30 天未玩）、多字段排序，
-   筛选与排序同时作用于三列；**导航栏不再提供模式切换**。
-   条目字段后续接真实数据时保持兼容（后端 `modules/leaderboard/repository.rs` 同口径）。
+   支持名称模糊 / SteamID64 子串搜索、活跃度筛选（近 7 / 30 天、超 30 天未玩）、多字段排序
+   （总积分 / 完成地图 / 平均分 / Rating），**搜索、筛选、排序、分页全部由服务端完成**；
+   **导航栏不再提供模式切换**。榜单每 10 分钟刷新前 1000 名，每 6 小时全量回扫一次。
 3. 地图列表：浏览全部地图，支持难度（按当前模式 Tier）筛选与名称搜索；
    **卡片网格排列**（仿 gokz.top，宽屏默认 4 列，窄屏降为 3 / 2 / 1 列）：地图图片、
    地图名称、制作人、难度徽章、是否有奖励关（Bonus ×N / 无 Bonus），
@@ -41,7 +42,7 @@
    页内 KZT/SKZ/VNL 切换，每个模式展示两张主关前 100 榜：PRO 与 TP；
    两榜**双列并排**（≤1100px 堆叠），紧凑列宽（紧凑头像 + 无 SteamID64 + `YY-MM-DD HH:mm`）
    确保不出现横向滚动；每条含头像、名称（链接资料页）、完成时间、分数、上传时间，TP 榜额外显示存读点次数。
-5. 服务器列表：全部在线服务器详细信息，提供**两种视图切换**——卡片排列（grid，**默认**）与
+5. 服务器列表：全部在线 **CS:GO** 服务器（**排除 CS2，appid 730**）详细信息，提供**两种视图切换**——卡片排列（grid，**默认**）与
    列状排列（list）；两种视图都显示当前地图图片、地图名、难度与区域、人数、社区标签、
    在线玩家昵称标签。支持**按社区分类筛选**（后端 `servers/category.rs` 归一化：优先 `group_name`，
    缺失时从服务器名推导，如 CNGOKZ / AXE / HIME；分类栏计数倒序）。
@@ -302,7 +303,9 @@ JSON 一律 snake_case，与前后端类型一一对应。
   - 实时推送：`GET /api/v1/stream?topics=records,map:44,player:<steamid64>,bans,leaderboard,stats`
     （SSE；`topics` 为空订阅全部；事件体 `{ topic, kind, id?, at }`，15s 心跳）
   - 健康：`GET /api/v1/health`、`GET /api/v1/health/ready`
-  - 榜单：`GET /api/v1/leaderboard?mode=KZT`（本站名次，按本站汇总分；前端本地搜索/筛选/排序）
+  - 榜单：`GET /api/v1/leaderboard?mode=&page=&per_page=&query=&sort=&activity=`
+    （分页信封 `{ data, pagination: { page, per_page, total } }`；`sort` = points/maps/avg/rating，
+    `activity` = all/7/30/inactive；`rank` 为当前排序下的跨分页名次）
   - 记录：`GET /api/v1/records`（三模式各最新 20 条）
   - 封禁：`GET /api/v1/bans?query=&page=&per_page=`（分页信封）
   - 地图：`GET /api/v1/maps?query=&tier=&mode=`（返回含 `mappers` / 三模式 tier / `bonuses` /
@@ -395,9 +398,9 @@ JSON 一律 snake_case，与前后端类型一一对应。
 | 最新成绩（实时） | KZTimer `/records/top/recent` | 官方公开广播式接口，**10s 轮询 + record id 游标**，`source='kztimer'` |
 | 地图 / 个人成绩（按需） | gokz.top（缓存）+ KZTimer | 地图详情、个人记录，优先本地缓存 |
 | 地图元信息（tier/bonus/作者） | gokz.top（启动全量 + 每日刷新，落库缓存） | KZTimer `/maps` 只有单一 `difficulty`，无 bonus/作者 |
-| 排行榜聚合 | gokz.top（**每 10 分钟刷新**，落库缓存） | KZTimer `player_ranks` 的 KZT 恒 500，不可用 |
+| 排行榜聚合 | gokz.top（**前 1000 名每 10 分钟、全量每 6 小时**，落库缓存） | KZTimer `player_ranks` 的 KZT 恒 500，不可用 |
 | 封禁 | gokz.top（**每 60s `updated_since` 增量 + 级联失效**，落库缓存） | KZTimer `/bans` 亦可用 |
-| 服务器（实时） | ① 本站插件上报（优先）② Steam Web API | 见 §9.11；只展示 KZ 模式 CS 服 |
+| 服务器（实时） | ① 本站插件上报（优先）② Steam Web API | 见 §9.11；只展示 KZ 模式 CS:GO 服（排除 CS2 `appid=730`） |
 | 地图作者显示名 | `kzgo.eu/api/*` | 公开只读；字段可能含 null |
 
 > 原则（2026-10-18 起）：成绩实时链路用官方 KZTimer；gokz.top 只作为**可落库缓存的辅助源**
@@ -690,6 +693,11 @@ POST /api/v2.0/records                 X-ApiKey: <key>
   前端新增 `useLiveReload`，首页/最新记录/排行榜/地图详情/个人资料/封禁名单订阅对应主题并防抖刷新；
   Playwright 实测地图页、记录页、个人资料页在事件到达后自动重新拉取（无页面跳转），
   单实例内存广播，多实例可换 Redis Pub/Sub。
+- 当前：排行榜全量 + 分页（2026年10月19日，`develop`）：上游实际 KZT **103,336** / SKZ 9,415 /
+  VNL 3,443，此前仅导入每模式前 200。改为全量导入（`KZT:full` 等任务）+ 每列每页 50 独立分页，
+  搜索/活跃度/排序（总积分/完成地图/平均分/Rating）全部下推 SQL；同步策略：前 1000 名每 10 分钟、
+  全量每 6 小时，批量 upsert（每页 100 条，jsonb_to_recordset）加速。
+  服务器列表排除 CS2（appid 730），只显示 CS:GO；首页在线服务器计数同口径。
 - 下一步（按序）：
   1. ~~旧阶段（vanilla 原型 + 单文件后端）~~ ✅ 已归档/替换
   2. ~~数据接入落地（§9）：`sources/` + `sync_jobs` + `scoring` + `0002/0003` + `ingest`；

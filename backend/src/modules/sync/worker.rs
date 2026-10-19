@@ -22,6 +22,10 @@ const RECORD_UPDATE_EVERY: u64 = 30;
 const SERVERS_EVERY: u64 = 300;
 const BANS_EVERY: u64 = 60;
 const LEADERBOARD_EVERY: u64 = 600;
+/// 全量榜单回扫周期（6 小时）；平时只刷新前 1000 名。
+const LEADERBOARD_FULL_EVERY: u64 = 6 * 3600;
+/// 快速刷新覆盖的名次数。
+const LEADERBOARD_TOP: i64 = 1000;
 const MAPS_EVERY: u64 = 86_400;
 
 /// 入队：任意任务。
@@ -54,6 +58,7 @@ pub async fn run(state: AppState) {
     let mut last_servers = Instant::now() - Duration::from_secs(SERVERS_EVERY);
     let mut last_bans = Instant::now() - Duration::from_secs(BANS_EVERY);
     let mut last_leaderboard = Instant::now() - Duration::from_secs(LEADERBOARD_EVERY);
+    let mut last_leaderboard_full = Instant::now() - Duration::from_secs(LEADERBOARD_FULL_EVERY);
     let mut last_maps = Instant::now() - Duration::from_secs(MAPS_EVERY);
     let inflight = Arc::new(Semaphore::new(MAX_INFLIGHT));
 
@@ -68,6 +73,12 @@ pub async fn run(state: AppState) {
                 enqueue(&state, super::KIND_LEADERBOARD, mode).await;
             }
             last_leaderboard = Instant::now();
+        }
+        if last_leaderboard_full.elapsed().as_secs() >= LEADERBOARD_FULL_EVERY {
+            for mode in jobs::MODES {
+                enqueue(&state, super::KIND_LEADERBOARD, &format!("{mode}:full")).await;
+            }
+            last_leaderboard_full = Instant::now();
         }
         if last_servers.elapsed().as_secs() >= SERVERS_EVERY {
             enqueue(&state, super::KIND_SERVERS, "all").await;
@@ -143,7 +154,14 @@ async fn execute(state: &AppState, kind: &str, key: &str) -> Result<usize, jobs:
     let events = &state.events;
     match kind {
         super::KIND_MAPS => jobs::run_maps(pool, src).await,
-        super::KIND_LEADERBOARD => jobs::run_leaderboard(pool, src, key, 200, events).await,
+        super::KIND_LEADERBOARD => {
+            let (mode, full) = match key.split_once(':') {
+                Some((mode, "full")) => (mode, true),
+                _ => (key, false),
+            };
+            let limit = if full { i64::MAX / 2 } else { LEADERBOARD_TOP };
+            jobs::run_leaderboard(pool, src, mode, limit, events).await
+        }
         super::KIND_RECENT => jobs::run_recent(pool, src, events).await,
         super::KIND_RECORD_UPDATES => jobs::run_record_updates(pool, src, events).await,
         super::KIND_SERVERS => jobs::run_servers(pool, src, &state.config.steam_api_key).await,
@@ -182,7 +200,7 @@ async fn seed(state: &AppState) -> Result<(), sqlx::Error> {
     }
     if table_count(&state.db, "player_scores").await? == 0 {
         for mode in jobs::MODES {
-            enqueue(state, super::KIND_LEADERBOARD, mode).await;
+            enqueue(state, super::KIND_LEADERBOARD, &format!("{mode}:full")).await;
         }
     }
     if table_count(&state.db, "records").await? == 0 {

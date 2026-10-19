@@ -34,8 +34,10 @@ pub async fn list_online(pool: &PgPool) -> Result<Vec<ServerEntry>, sqlx::Error>
                   s.player_names
            FROM servers s
            LEFT JOIN maps m ON m.name = s.map
-           -- 只显示 KZ 模式的 CS 服：插件服直接算 KZ，Steam 服要求 gametype 带 kz tag
+           -- 只显示 KZ 模式的 CS 服：插件服直接算 KZ，Steam 服要求 gametype 带 kz tag；
+           -- appid 730 = CS2，予以排除（站点只面向 CS:GO KZ）。
            WHERE s.online AND s.is_public
+             AND COALESCE(s.appid, 4465480) <> 730
              AND (s.source = 'plugin' OR s.game_mode ILIKE '%kz%')
            ORDER BY s.player_count DESC, s.name ASC"#,
     )

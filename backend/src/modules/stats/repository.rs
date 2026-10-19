@@ -20,9 +20,10 @@ pub async fn home(pool: &PgPool) -> Result<HomeStats, sqlx::Error> {
         r#"SELECT (SELECT count(*) FROM players)                              AS players,
                   (SELECT count(*) FROM maps)                                 AS maps,
                   (SELECT count(*) FROM records)                              AS records,
-                  (SELECT count(*) FROM servers WHERE online AND is_public)   AS servers_online,
+                  (SELECT count(*) FROM servers
+                    WHERE online AND is_public AND COALESCE(appid, 4465480) <> 730) AS servers_online,
                   (SELECT sum(player_count) FROM servers
-                    WHERE online AND is_public)                               AS players_online,
+                    WHERE online AND is_public AND COALESCE(appid, 4465480) <> 730) AS players_online,
                   (SELECT count(*) FROM bans)                                 AS bans"#,
     )
     .fetch_one(pool)

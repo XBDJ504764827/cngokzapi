@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { NAlert, NAvatar, NInput, NSelect, NSpin, NTag } from 'naive-ui'
+import { computed, onUnmounted, ref, watch } from 'vue'
+import { NAlert, NAvatar, NInput, NPagination, NSelect, NSpin, NTag } from 'naive-ui'
 import { RouterLink } from 'vue-router'
 import RankBadge from '@/components/RankBadge.vue'
 import { useApi } from '@/composables/useApi'
@@ -10,27 +10,33 @@ import type { Mode } from '@/types/common'
 import { avatarUrl } from '@/utils/avatar'
 import { formatDaysAgo, formatNumber } from '@/utils/format'
 import { fetchLeaderboard } from './api'
-import type { ActivityFilter, LeaderboardEntry, SortKey } from './types'
+import type { ActivityFilter, LeaderboardPage as LeaderboardPageData, SortKey } from './types'
 
-/** 每列展示的名次数（后端每模式返回约 200 名，可按搜索过滤）。 */
-const TOP_N = 50
+/** 每列每页展示 50 人；总数 / 搜索 / 排序全部由服务端处理。 */
+const PAGE_SIZE = 50
 
-// 三模式一次拉取，同页并排展示，互不切换。
+const query = ref('')
+const activity = ref<ActivityFilter>('all')
+const sortKey = ref<SortKey>('points')
+const pages = ref<Record<Mode, number>>({ KZT: 1, SKZ: 1, VNL: 1 })
+
 const { data, loading, error, reload } = useApi(async () => {
-  const [kzt, skz, vnl] = await Promise.all([
-    fetchLeaderboard('KZT'),
-    fetchLeaderboard('SKZ'),
-    fetchLeaderboard('VNL'),
-  ])
-  return { KZT: kzt, SKZ: skz, VNL: vnl } as Record<Mode, LeaderboardEntry[]>
+  const [kzt, skz, vnl] = await Promise.all(
+    MODES.map((m) =>
+      fetchLeaderboard(m, {
+        page: pages.value[m],
+        per_page: PAGE_SIZE,
+        query: query.value.trim(),
+        sort: sortKey.value,
+        activity: activity.value,
+      }),
+    ),
+  )
+  return { KZT: kzt, SKZ: skz, VNL: vnl } as Record<Mode, LeaderboardPageData>
 })
 
 // 榜单每 10 分钟刷新一次，事件到达时自动更新
 useLiveReload(() => ['leaderboard'], () => void reload())
-
-const query = ref('')
-const activity = ref<ActivityFilter>('all')
-const sortKey = ref<SortKey>('total_points')
 
 const activityOptions: { label: string; value: ActivityFilter }[] = [
   { label: '全部活跃度', value: 'all' },
@@ -40,37 +46,55 @@ const activityOptions: { label: string; value: ActivityFilter }[] = [
 ]
 
 const sortOptions: { label: string; value: SortKey }[] = [
-  { label: '按总分数排序', value: 'total_points' },
-  { label: '按完成地图排序', value: 'maps_completed' },
-  { label: '按平均分排序', value: 'avg_points' },
-  { label: '按记录数排序', value: 'records' },
+  { label: '按总积分排序', value: 'points' },
+  { label: '按完成地图排序', value: 'maps' },
+  { label: '按平均分排序', value: 'avg' },
+  { label: '按 Rating 排序', value: 'rating' },
 ]
 
-/** 单模式过滤 + 排序后取前 N。活跃度对未同步（null）玩家不命中。 */
-function filterRows(mode: Mode): LeaderboardEntry[] {
-  const all = data.value?.[mode] ?? []
-  const q = query.value.trim().toLowerCase()
-  return all
-    .filter((e) => {
-      if (q && !e.player.toLowerCase().includes(q) && !e.steam_id64.includes(q)) return false
-      const days = e.last_played_days_ago
-      if (activity.value === '7' && (days === null || days > 7)) return false
-      if (activity.value === '30' && (days === null || days > 30)) return false
-      if (activity.value === 'inactive' && (days === null || days <= 30)) return false
-      return true
-    })
-    .sort((a, b) => b[sortKey.value] - a[sortKey.value])
-    .slice(0, TOP_N)
+function resetPages(): void {
+  pages.value = { KZT: 1, SKZ: 1, VNL: 1 }
 }
 
-// 三列一次性算好，避免模板里重复计算
+// 搜索防抖；筛选/排序变化立即重置页码并刷新
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+watch(query, () => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    resetPages()
+    void reload()
+  }, 300)
+})
+watch([activity, sortKey], () => {
+  resetPages()
+  void reload()
+})
+onUnmounted(() => {
+  if (searchTimer) clearTimeout(searchTimer)
+})
+
+function changePage(mode: Mode, page: number): void {
+  if (pages.value[mode] === page) return
+  pages.value = { ...pages.value, [mode]: page }
+  void reload()
+}
+
 const columns = computed(() =>
-  MODES.map((mode) => ({
-    mode,
-    rows: filterRows(mode),
-    total: data.value?.[mode]?.length ?? 0,
-  })),
+  MODES.map((mode) => {
+    const page = data.value?.[mode] ?? null
+    return { mode, page, rows: page?.data ?? [], total: page?.pagination.total ?? 0 }
+  }),
 )
+
+function pageCount(total: number): number {
+  return Math.max(1, Math.ceil(total / PAGE_SIZE))
+}
+
+function rangeText(page: LeaderboardPageData): string {
+  const from = (page.pagination.page - 1) * page.pagination.per_page + 1
+  const to = Math.min(page.pagination.page * page.pagination.per_page, page.pagination.total)
+  return `${from}–${to} / 共 ${page.pagination.total} 人`
+}
 </script>
 
 <template>
@@ -139,8 +163,15 @@ const columns = computed(() =>
           </div>
         </div>
 
-        <div v-if="col.rows.length" class="lb-foot">
-          展示前 {{ col.rows.length }} 名{{ query || activity !== 'all' ? '（已筛选）' : '' }}
+        <div v-if="col.page && col.page.pagination.total" class="lb-foot">
+          <span class="lb-range">{{ rangeText(col.page) }}</span>
+          <NPagination
+            v-if="pageCount(col.total) > 1"
+            size="small"
+            :page="col.page.pagination.page"
+            :page-count="pageCount(col.total)"
+            @update:page="(p) => changePage(col.mode, p)"
+          />
         </div>
       </div>
     </div>
@@ -269,11 +300,24 @@ const columns = computed(() =>
 }
 
 .lb-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
   padding: 10px 16px;
   border-top: 1px solid var(--border-color);
   font-size: 12px;
   color: var(--text-muted);
   background-color: var(--bg-subtle);
+}
+
+.lb-range {
+  flex-shrink: 0;
+}
+
+.lb-foot :deep(.n-pagination) {
+  flex-wrap: wrap;
 }
 
 @media (max-width: 1080px) {

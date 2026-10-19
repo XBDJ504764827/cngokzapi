@@ -3,13 +3,13 @@ use axum::{
     Json,
 };
 
-use super::{dto::LeaderboardQuery, models::LeaderboardEntry, service};
+use super::{dto::LeaderboardQuery, models::LeaderboardPage, service};
 use crate::{errors::AppError, state::AppState};
 
-/// GET /api/v1/leaderboard?mode=KZT —— 公开接口，无需鉴权。
+/// GET /api/v1/leaderboard?mode=&page=&per_page=&query=&sort=&activity= —— 公开接口。
 pub async fn list(
     State(state): State<AppState>,
     Query(q): Query<LeaderboardQuery>,
-) -> Result<Json<Vec<LeaderboardEntry>>, AppError> {
-    Ok(Json(service::board(&state, q.mode.as_deref()).await?))
+) -> Result<Json<LeaderboardPage>, AppError> {
+    Ok(Json(service::board(&state, &q).await?))
 }

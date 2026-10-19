@@ -475,6 +475,102 @@ pub async fn upsert_score(pool: &PgPool, s: &ScoreUpsert<'_>) -> Result<(), sqlx
     Ok(())
 }
 
+/// 榜单批量导入载荷（每页 100 条，避免逐行往返）。
+pub struct LeaderboardRow<'a> {
+    pub steam_id: i64,
+    pub name: &'a str,
+    pub points: i64,
+    pub rank: Option<i32>,
+    pub rating: Option<f64>,
+    pub maps_completed: i32,
+    pub wrs_nub: i32,
+    pub wrs_pro: i32,
+    pub records_900_plus: i32,
+    pub records_800_plus: i32,
+}
+
+/// 榜单批量 upsert：一次写入 players 与 player_scores（全量导入 / 10 分钟刷新共用）。
+pub async fn upsert_leaderboard_batch(
+    pool: &PgPool,
+    mode: &str,
+    rows: &[LeaderboardRow<'_>],
+) -> Result<usize, sqlx::Error> {
+    if rows.is_empty() {
+        return Ok(0);
+    }
+    #[derive(serde::Serialize)]
+    struct Row<'a> {
+        steam_id: i64,
+        name: &'a str,
+        points: i64,
+        rank: Option<i32>,
+        rating: Option<f64>,
+        maps_completed: i32,
+        wrs_nub: i32,
+        wrs_pro: i32,
+        records_900_plus: i32,
+        records_800_plus: i32,
+    }
+    let payload = serde_json::to_string(
+        &rows
+            .iter()
+            .map(|r| Row {
+                steam_id: r.steam_id,
+                name: r.name,
+                points: r.points,
+                rank: r.rank,
+                rating: r.rating,
+                maps_completed: r.maps_completed,
+                wrs_nub: r.wrs_nub,
+                wrs_pro: r.wrs_pro,
+                records_900_plus: r.records_900_plus,
+                records_800_plus: r.records_800_plus,
+            })
+            .collect::<Vec<_>>(),
+    )
+    .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+
+    sqlx::query(
+        r#"WITH data AS (
+               SELECT * FROM jsonb_to_recordset($1::jsonb) AS x(
+                   steam_id BIGINT, name TEXT, points BIGINT, rank INTEGER,
+                   rating DOUBLE PRECISION, maps_completed INTEGER,
+                   wrs_nub INTEGER, wrs_pro INTEGER,
+                   records_900_plus INTEGER, records_800_plus INTEGER
+               )
+           ),
+           upsert_players AS (
+               INSERT INTO players (steam_id, name)
+               SELECT steam_id, name FROM data
+               ON CONFLICT (steam_id) DO UPDATE SET
+                   name = CASE WHEN EXCLUDED.name = '' THEN players.name ELSE EXCLUDED.name END,
+                   updated_at = now()
+           )
+           INSERT INTO player_scores (player_steam_id, mode, points, rank, rating, maps_completed,
+                                      wrs_nub, wrs_pro, records_900_plus, records_800_plus,
+                                      source, updated_at)
+           SELECT steam_id, $2, points, rank, rating, maps_completed, wrs_nub, wrs_pro,
+                  records_900_plus, records_800_plus, 'gokz_top', now()
+           FROM data
+           ON CONFLICT (player_steam_id, mode) DO UPDATE SET
+               points           = EXCLUDED.points,
+               rank             = EXCLUDED.rank,
+               rating           = EXCLUDED.rating,
+               maps_completed   = EXCLUDED.maps_completed,
+               wrs_nub          = EXCLUDED.wrs_nub,
+               wrs_pro          = EXCLUDED.wrs_pro,
+               records_900_plus = EXCLUDED.records_900_plus,
+               records_800_plus = EXCLUDED.records_800_plus,
+               source           = EXCLUDED.source,
+               updated_at       = now()"#,
+    )
+    .bind(payload)
+    .bind(mode)
+    .execute(pool)
+    .await?;
+    Ok(rows.len())
+}
+
 /// 写回「本站汇总分」（计分引擎结果，PROJECT §9.4）。
 pub async fn update_local_points(
     pool: &PgPool,
