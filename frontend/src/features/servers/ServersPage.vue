@@ -437,6 +437,9 @@ function region(server: ServerEntry): string {
 }
 
 .server-card-grid {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -489,6 +492,10 @@ function region(server: ServerEntry): string {
 }
 
 .server-card-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
   padding: 16px 18px 18px;
 }
 
@@ -566,7 +573,9 @@ function region(server: ServerEntry): string {
 .server-actions {
   display: flex;
   gap: 8px;
-  margin-top: 14px;
+  /* 顶到卡片底部：同一行卡片高度一致，按钮不受玩家昵称数量影响 */
+  margin-top: auto;
+  padding-top: 14px;
   /* 主操作靠左、次操作（复制 IP）靠右，避免两个按钮挤在一起 */
   justify-content: space-between;
 }

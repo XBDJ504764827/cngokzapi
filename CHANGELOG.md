@@ -10,6 +10,19 @@
 
 ---
 
+## 2026年10月19日 22时07分26秒 修复服务器卡片按钮被玩家昵称数量撑偏的问题
+
+- 背景：卡片视图里「加入游戏 / 复制 IP」直接接在玩家昵称后，昵称数量不同导致同一行卡片按钮
+  上下错位（实测同一行 actionsTop 814 / 756）。
+- 变更内容：
+  - `.server-card-grid` 改为 vertical flex + `height: 100%`，卡片等高；
+  - `.server-card-content` 改为 `flex: 1` 的纵向 flex；
+  - `.server-actions` 改用 `margin-top: auto` + `padding-top: 14px`，按钮始终贴卡片底部。
+- 涉及文件：`frontend/src/features/servers/ServersPage.vue`、`CHANGELOG.md`。
+- 数据库与 API 变化：无。
+- 测试与结果（北京时间）：`npm run build` 通过；Playwright 实测同一行三张卡的 `actionsTop`
+  完全一致（第一行 800、第二行 1297），不再受 6 / 7 / 13 个昵称影响。
+
 ## 2026年10月19日 21时59分55秒 接入 A2S 直连：实时人数与玩家昵称
 
 - 背景：gokz.top 只覆盖登记过的服务器，Steam 官方 API 又只有人数；未登记的服仍显示不了昵称。
