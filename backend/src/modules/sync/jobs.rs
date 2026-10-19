@@ -2,14 +2,21 @@
 //!
 //! 每个任务都是「可重入」的：重复执行只会更新已有行或跳过（PROJECT §9.6）。
 
+use std::collections::HashSet;
+use std::sync::Arc;
+use std::time::Duration;
+
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
+use tokio::sync::Semaphore;
+use tokio::task::JoinSet;
 
 use super::repository::{self, BanUpsert, MapUpsert, RecordUpsert, ScoreUpsert, ServerUpsert};
 use crate::{
     events::EventBus,
     modules::scoring,
     sources::{
+        a2s,
         gokz_top::{GokzTop, TopRecordRow},
         kztimer::{self, Kztimer},
         steam::Steam,
@@ -698,12 +705,53 @@ pub async fn run_servers(
     }
     tracing::info!(servers = rows.len(), "Steam 服务器同步完成（KZ 服）");
 
-    // Steam Web API 只有人数，没有昵称：用 gokz.top 的 live_status.players 补写。
-    // 插件服以插件上报为准，本步骤只更新 source='steam' 的行。
+    // A2S 直连：只查 CS:GO 服（站点已隐藏 CS2），补实时人数与玩家昵称。
+    // 单台超时/禁用查询不影响整轮；失败的服再回退 gokz.top。
+    let addresses: Vec<(String, i32)> = rows
+        .iter()
+        .filter(|s| s.appid != 730)
+        .filter_map(|s| s.ip_port())
+        .collect();
+    let semaphore = Arc::new(Semaphore::new(8));
+    let mut tasks = JoinSet::new();
+    for (ip, port) in addresses {
+        let semaphore = semaphore.clone();
+        tasks.spawn(async move {
+            let _permit = semaphore.acquire_owned().await.ok();
+            let snapshot = a2s::query(&ip, port, Duration::from_secs(2)).await;
+            (ip, port, snapshot)
+        });
+    }
+    let mut a2s_ok = 0;
+    let mut a2s_failed: HashSet<(String, i32)> = HashSet::new();
+    while let Some(joined) = tasks.join_next().await {
+        let Ok((ip, port, snapshot)) = joined else {
+            continue;
+        };
+        match snapshot {
+            Some(s) => {
+                a2s_ok += 1;
+                repository::update_server_live(pool, &ip, port, s.players, &s.names).await?;
+                if !s.players_ok {
+                    // INFO 成功但 PLAYER 失败：人数已更新，昵称交给 gokz.top 兜底
+                    a2s_failed.insert((ip, port));
+                }
+            }
+            None => {
+                a2s_failed.insert((ip, port));
+            }
+        }
+    }
+    tracing::info!(a2s_ok, failed = a2s_failed.len(), "A2S 玩家昵称同步完成");
+
+    // gokz.top 兜底：只补 A2S 未成功的服务器，避免覆盖更实时的 A2S 结果。
     match GokzTop(src).servers().await {
         Ok(page) => {
             let mut named = 0;
             for s in &page.data {
+                if !a2s_failed.contains(&(s.ip.clone(), s.port)) {
+                    continue;
+                }
                 let Some(ls) = &s.live_status else {
                     continue;
                 };
@@ -719,7 +767,7 @@ pub async fn run_servers(
                     named += 1;
                 }
             }
-            tracing::info!(named, "已补写 gokz.top 在线玩家昵称");
+            tracing::info!(named, "已用 gokz.top 兜底在线玩家昵称");
         }
         // 失败不影响服务器在线状态，只是暂时没有昵称
         Err(e) => tracing::warn!(error = %e, "gokz.top 在线玩家不可用，保留 Steam 人数"),

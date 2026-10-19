@@ -10,6 +10,24 @@
 
 ---
 
+## 2026年10月19日 21时59分55秒 接入 A2S 直连：实时人数与玩家昵称
+
+- 背景：gokz.top 只覆盖登记过的服务器，Steam 官方 API 又只有人数；未登记的服仍显示不了昵称。
+- 变更内容：
+  - 新增 `sources/a2s.rs`：使用 `a2s` crate（async）直连服务器，发 `A2S_INFO` / `A2S_PLAYER`，
+    获取实时人数、最大人数与玩家昵称；超时 2s，单台失败返回 `None`。
+  - `run_servers` 在 Steam 同步后并发查询 CS:GO 服（并发 8，只查 `appid != 730`），
+    成功则写入 `player_count` + `player_names`；失败的服再回退 gokz.top，插件服不覆盖。
+  - 昵称清洗：去掉颜色码/控制字符/零宽字符，过滤 `GOTV` / `SourceTV` 观战端。
+- 涉及文件：`backend/Cargo.toml`、`backend/src/sources/{mod,a2s}.rs`、
+  `backend/src/modules/sync/{jobs,repository}.rs`、`PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无表结构/API 变化；服务器同步新增 UDP 查询。
+- 测试与结果（北京时间）：`cargo fmt`/`build`/`clippy -D warnings`、`cargo test`（**33 passed**，
+  含 A2S 清洗/观战过滤单测）通过；实测一轮：A2S 成功 52 台、失败 28 台，gokz.top 兜底补 7 台；
+  当前 30 台服务器共 93 个昵称（CNGOKZ / House of Climb / AXE / FemboyKZ 等），
+  仅 1 台有玩家人数但 A2S 与 gokz.top 都未取到昵称（显示「昵称同步中」）；
+  Playwright 确认 93 个昵称 chip 正常渲染、无报错。
+
 ## 2026年10月19日 21时47分38秒 修复服务器只显示人数不显示玩家昵称
 
 - 背景：服务器卡片能显示 `player_count`，但「在线玩家」始终为空。原因：Steam Web API

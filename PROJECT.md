@@ -44,8 +44,9 @@
    确保不出现横向滚动；每条含头像、名称（链接资料页）、完成时间、分数、上传时间，TP 榜额外显示存读点次数。
 5. 服务器列表：全部在线 **CS:GO** 服务器（**排除 CS2，appid 730**）详细信息，提供**两种视图切换**——卡片排列（grid，**默认**）与
    列状排列（list）；两种视图都显示当前地图图片、地图名、难度与区域、人数、社区标签、
-   在线玩家昵称标签（插件服以插件上报为准；Steam 服由 gokz.top `live_status.players` 补写，
-   因为 Steam Web API 只返回人数、不返回昵称）。支持**按社区分类筛选**（后端 `servers/category.rs` 归一化：优先 `group_name`，
+   在线玩家昵称标签（插件服以插件上报为准；Steam 服由 **A2S 直连**补写人数与昵称，
+   失败再回退 gokz.top `live_status.players`；Steam Web API 只返回人数、不返回昵称）。
+   支持**按社区分类筛选**（后端 `servers/category.rs` 归一化：优先 `group_name`，
    缺失时从服务器名推导，如 CNGOKZ / AXE / HIME；分类栏计数倒序）。分类栏为**紧凑 chip 自动换行**
    （12px 小号、自然宽度，不做等宽对齐与横向滚动），过长社区名用简写（完整名保留在 title）。
    地址一律不渲染明文：提供「复制 IP」与「加入游戏」两个按钮，后者点击时用
@@ -406,7 +407,7 @@ JSON 一律 snake_case，与前后端类型一一对应。
 | 地图元信息（tier/bonus/作者） | gokz.top（启动全量 + 每日刷新，落库缓存） | KZTimer `/maps` 只有单一 `difficulty`，无 bonus/作者 |
 | 排行榜聚合 | gokz.top（**前 1000 名每 10 分钟、全量每 6 小时**，落库缓存） | KZTimer `player_ranks` 的 KZT 恒 500，不可用 |
 | 封禁 | gokz.top（**每 60s `updated_since` 增量 + 级联失效**，落库缓存） | KZTimer `/bans` 亦可用 |
-| 服务器（实时） | ① 本站插件上报（优先）② Steam Web API + gokz.top `live_status` | 见 §9.11；只展示 KZ 模式 CS:GO 服（排除 CS2 `appid=730`）；昵称由插件或 gokz.top 补充 |
+| 服务器（实时） | ① 本站插件上报（优先）② Steam Web API + **A2S 直连** + gokz.top `live_status` | 见 §9.11；只展示 KZ 模式 CS:GO 服（排除 CS2 `appid=730`）；昵称优先插件，其次 A2S，最后 gokz.top |
 | 地图作者显示名 | `kzgo.eu/api/*` | 公开只读；字段可能含 null |
 
 > 原则（2026-10-18 起）：成绩实时链路用官方 KZTimer；gokz.top 只作为**可落库缓存的辅助源**
@@ -561,6 +562,10 @@ POST /api/v2.0/records                 X-ApiKey: <key>
    并删除榜单汇总（见 §9.5），解禁后由 `record_updates` 自动恢复。
 
 ### 9.11 服务器来源（2026-10-18 落地）
+
+昵称来源补充（2026-10-19）：Steam 官方 API 只有人数，没有昵称。服务器同步会先用
+**A2S（A2S_INFO / A2S_PLAYER，UDP）** 直连查询每台 CS:GO 服，拿到实时人数与玩家昵称；
+查询失败的服再回退 gokz.top `live_status.players`；插件上报的服以插件为准，不被覆盖。
 
 服务器列表有两个来源，写入同一张 `servers` 表，以 `(ip, port)` 唯一键合并：
 

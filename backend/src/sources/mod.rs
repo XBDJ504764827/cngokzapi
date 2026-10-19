@@ -5,6 +5,7 @@
 //! - 上游响应类型只在本层出现，不进入各模块 `models.rs`；
 //! - 失败向上返回 `SourceError`，由调用方映射为 503（见 §6 错误信封）。
 
+pub mod a2s;
 pub mod gokz_top;
 pub mod kzgo;
 pub mod kztimer;

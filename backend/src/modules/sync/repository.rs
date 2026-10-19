@@ -90,6 +90,27 @@ pub struct ServerUpsert<'a> {
     pub steam_id: Option<&'a str>,
 }
 
+/// A2S 直连结果：更新 Steam 服的实时人数与玩家昵称。
+pub async fn update_server_live(
+    pool: &PgPool,
+    ip: &str,
+    port: i32,
+    player_count: i32,
+    names: &[String],
+) -> Result<u64, sqlx::Error> {
+    let res = sqlx::query(
+        "UPDATE servers SET player_count = $3, player_names = $4, updated_at = now() \
+         WHERE ip = $1 AND port = $2 AND online AND source = 'steam'",
+    )
+    .bind(ip)
+    .bind(port)
+    .bind(player_count)
+    .bind(names)
+    .execute(pool)
+    .await?;
+    Ok(res.rows_affected())
+}
+
 /// 用 gokz.top 的 `live_status.players` 补写 Steam 服的在线玩家昵称。
 /// Steam Web API 只给人数、不给昵称；插件服以插件上报为准，故只更新 `source='steam'`。
 pub async fn update_server_player_names(
