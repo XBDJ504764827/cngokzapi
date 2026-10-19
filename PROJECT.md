@@ -48,12 +48,16 @@
    地址一律不渲染明文：提供「复制 IP」与「加入游戏」两个按钮，后者点击时用
    `steam://rungameid/<CS_APP_ID>//+connect ip:port` 拉起 Steam 客户端
    （`CS_APP_ID` 常量默认 `4465480`，集中在前端 `ServersPage.vue`，便于后续更换）。
-6. 个人资料：玩家统计、完成地图、个人记录；最近成绩与「已同步成绩」计数均**只统计有分记录
-   （`points > 0`）**，不展示未破个人记录/未计分的完成。最近成绩**按 KZT/SKZ/VNL 三列分组**，
+6. 个人资料：玩家统计、完成地图、个人记录；最近完成地图与「已同步成绩」计数均**只统计有分记录
+   （`points > 0`）**，不展示未破个人记录/未计分的完成。**最近完成地图按 KZT/SKZ/VNL 三列分组**，
    每条含地图缩略图 + 地图名（点击进地图详情）、关卡、完成时间、分数、日期；每模式最多 20 条。
+   **地图进度**：页内 KZT/SKZ/VNL 切换 + 「已完成 / 未完成」两个标签页，每页 24 张地图卡片
+   （缩略图、地图名、当前模式 Tier、已完成附最佳耗时与分数），支持地图名搜索与分页；
+   已完成/未完成以该模式主关（`stage=0`）有效成绩是否存在为准。
    页面视觉（2026-10-19 重设计）：身份卡（真实头像 + 国旗角标 + 可复制 SteamID64 + 国家名 / 区域），
    下方 KZT/SKZ/VNL 三张模式档案卡（各含全球总积分、全球排名、等级与 10 级进度条、完成地图 / WR /
-   本站已同步）。等级由 Rating 判定，与 GOKZ.TOP 口径一致：New 1.00 / Beginner 2.00 / Amateur 3.00 /
+   本站已同步）；顶部玩家搜索框为大号搜索卡（图标 + 主按钮 + 格式提示 + 「高级查询」入口）。
+   等级由 Rating 判定，与 GOKZ.TOP 口径一致：New 1.00 / Beginner 2.00 / Amateur 3.00 /
    Casual 4.00 / Regular 5.00 / Skilled 6.00 / Expert 7.00 / Pro 8.00 / Master 9.00 / Legend 10.00，
    Rating < 1 视为「未评级」。国家（ISO 3166 alpha-2，国旗用 flagcdn 图片，缺图只显示文字）与
    真实头像源自 GOKZ.TOP `GET /v1/players/{steamid64}`，随玩家档案同步写入。
@@ -256,6 +260,8 @@ JSON 一律 snake_case，与前后端类型一一对应。
   `bonuses`、`workshop_id`、`filesize`、`validated`、`authors TEXT[]`、`synced_at`。
 - `players` 增列：`region`、`country`（ISO 3166 alpha-2，来自 GOKZ.TOP `/players/{steamid64}`；
   `0006_player_country.sql`）、`avatar_synced_at`、`updated_at`。
+- `0007_player_pb_backfill.sql`（2026-10-19）：无表结构变更，重置 `player` 任务，
+  让同步按 PB 重拉以回填「全部已完成地图」。
 - `records` 增列：`source`（`plugin`/`gokz_top`/`kztimer`）、`external_id`（UNIQUE）、
   `stage`、`tickrate`、`teleports`、`points_local`（本站口径，可空）、
   `origin_server_id`、`server_name`、`server_group`、`wr_time_ms`、`is_valid`、`updated_at`；
@@ -298,6 +304,9 @@ JSON 一律 snake_case，与前后端类型一一对应。
     `{ steam_id64 }`；`/id/自定义名` 用 Steam Web API 解析）
   - 玩家：`GET /api/v1/players/{steam_id64}`（个人资料，首次访问触发后台同步；`recent_records`
     按模式各最多 20 条有分成绩，含 `map_id` 供地图图片/详情跳转）
+  - 玩家地图进度：`GET /api/v1/players/{steam_id64}/maps?mode=&status=completed|uncompleted&page=&per_page=&q=`
+    （已完成/未完成地图分页，返回 `total / completed_total / maps_total` 与 `data[]`；
+    已完成项带 `best_time` / `points`；`q` 为地图名模糊搜索）
   - 记录：`GET /api/v1/records`（含 `steam_id64` / `map_id`，供头像、资料页与地图详情跳转；
     含 `created_at` 上传时间）
   - 统计：`GET /api/v1/stats`（首页计数）
@@ -386,7 +395,8 @@ JSON 一律 snake_case，与前后端类型一一对应。
 关键接口（均已实测）：
 
 - 玩家：`GET /v1/leaderboards/players/{steamid64}`、`GET /v1/players/{steamid64}`
-  （国家 / 头像 hash / 名称）、`GET /v1/records?steamid64=&offset=&limit=`
+  （国家 / 头像 hash / 名称）、`GET /v1/records?steamid64=&offset=&limit=`、
+  `GET /v1/records/pb?identifier=&scope=&type=NUB|PRO&is_bonus=&offset=&limit=`（玩家 PB，裸数组）
 - 榜单：`GET /v1/leaderboards/players?offset=&limit=`（返回 `count`，可分页）
 - 地图：`GET /v1/maps`、`GET /v1/records?map_name=&stage=&limit=`
 - 增量：`GET /v1/records/recent?created_since=`
@@ -425,7 +435,9 @@ JSON 一律 snake_case，与前后端类型一一对应。
 
 ### 9.5 同步策略（按需回源，禁止一次性全量镜像）—— 已实现
 
-- **玩家维度可懒加载**：用户查某玩家、或收到该玩家上报 → 后台拉其档案与 PB → 落库计分。
+- **玩家维度可懒加载**：用户查某玩家、或收到该玩家上报 → 后台拉其档案、PB 与最近成绩 → 落库计分。
+  玩家 PB 按模式分页拉 `GET /records/pb?type=NUB|PRO&is_bonus=false`（每页 1000，上限 20000），
+  以保证「全部已完成地图」不被最近成绩截断；旧的 `/records?steamid64=&limit=1000` 仍用于最近成绩。
 - **地图维度必须整图同步**：计分依赖名次，首次需要某 `(地图, 模式, 关卡)` 时，
   拉该图**全部得分记录**（实测单图单模式主关约 2800 条 / 1.2MB / 16 秒），
   之后本地即可实时排名；缓存 TTL 默认 7 天并做增量。
@@ -629,6 +641,11 @@ POST /api/v2.0/records                 X-ApiKey: <key>
   触及 `DefaultLayout`、`HomePage`、`LeaderboardPage`、`RecordsPage`、`ProfilePage`、`MapsPage`、
   `MapDetailPage`、`ServersPage`、`RankBadge` 与两份 token 文件；无 API/DB 变化。
   （首版为靛蓝/紫罗兰渐变方案，因「AI 感过重」已改为本暖调平涂方案。）
+- 当前：个人资料地图进度（2026年10月19日，`develop`）：玩家同步新增 `/records/pb` 分模式分页回源
+  （NUB/PRO 主关），修复顶级玩家完成地图被最近 1000 条截断的问题；新增
+  `GET /api/v1/players/{steam_id64}/maps`（已完成/未完成、分页、名称搜索）；个人资料「最近成绩」
+  更名「最近完成地图」并新增「地图进度」区块（模式切换 + 已完成/未完成标签 + 24 张/页卡片），
+  顶部玩家搜索框改为大号搜索卡。
 - 下一步（按序）：
   1. ~~旧阶段（vanilla 原型 + 单文件后端）~~ ✅ 已归档/替换
   2. ~~数据接入落地（§9）：`sources/` + `sync_jobs` + `scoring` + `0002/0003` + `ingest`；

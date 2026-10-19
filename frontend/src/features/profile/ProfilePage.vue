@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
-import { NAlert, NAvatar, NButton, NInput, NSpin, NTag } from 'naive-ui'
+import { NAlert, NAvatar, NButton, NInput, NPagination, NSpin, NTag } from 'naive-ui'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useApi } from '@/composables/useApi'
 import { MODES } from '@/types/common'
 import type { Mode } from '@/types/common'
 import { avatarUrl } from '@/utils/avatar'
 import { countryName, flagUrl } from '@/utils/country'
-import { formatNumber } from '@/utils/format'
+import { formatNumber, formatTier } from '@/utils/format'
 import { mapImage } from '@/utils/mapImage'
 import { resolvePlayer } from '@/features/players/api'
-import { fetchProfile } from './api'
+import { fetchPlayerMaps, fetchProfile } from './api'
 import { levelOf } from './level'
-import type { PlayerScoreEntry } from './types'
+import type { PlayerMapsResult, PlayerScoreEntry } from './types'
 
 const route = useRoute()
 const router = useRouter()
@@ -48,6 +48,7 @@ watch(steamId, () => (retries = 0))
 onUnmounted(() => {
   if (timer) clearTimeout(timer)
   if (copyTimer) clearTimeout(copyTimer)
+  if (mapSearchTimer) clearTimeout(mapSearchTimer)
 })
 
 async function submit(): Promise<void> {
@@ -128,6 +129,99 @@ const recentByMode = computed(() =>
   })),
 )
 
+// ---------- 地图进度（已完成 / 未完成，按模式） ----------
+const MAPS_PER_PAGE = 24
+
+const mapMode = ref<Mode>('KZT')
+const mapStatus = ref<'completed' | 'uncompleted'>('completed')
+const mapPage = ref(1)
+const mapQuery = ref('')
+const mapsData = ref<PlayerMapsResult | null>(null)
+const mapsLoading = ref(false)
+const mapsError = ref<string | null>(null)
+
+const uncompletedTotal = computed(() => {
+  const d = mapsData.value
+  return d ? Math.max(0, d.maps_total - d.completed_total) : 0
+})
+
+const mapPageCount = computed(() => {
+  const d = mapsData.value
+  return d ? Math.max(1, Math.ceil(d.total / d.per_page)) : 1
+})
+
+async function loadMaps(): Promise<void> {
+  const id = steamId.value
+  if (!id) return
+  mapsLoading.value = true
+  mapsError.value = null
+  try {
+    mapsData.value = await fetchPlayerMaps(id, {
+      mode: mapMode.value,
+      status: mapStatus.value,
+      page: mapPage.value,
+      per_page: MAPS_PER_PAGE,
+      q: mapQuery.value.trim(),
+    })
+  } catch (e) {
+    mapsError.value = e instanceof Error ? e.message : '地图进度加载失败'
+  } finally {
+    mapsLoading.value = false
+  }
+}
+
+function switchMapMode(m: Mode): void {
+  if (mapMode.value === m) return
+  mapMode.value = m
+  mapPage.value = 1
+  void loadMaps()
+}
+
+function switchMapStatus(s: 'completed' | 'uncompleted'): void {
+  if (mapStatus.value === s) return
+  mapStatus.value = s
+  mapPage.value = 1
+  void loadMaps()
+}
+
+function onMapPage(p: number): void {
+  mapPage.value = p
+  void loadMaps()
+}
+
+// 名称搜索：输入后 300ms 防抖
+let mapSearchTimer: ReturnType<typeof setTimeout> | undefined
+watch(mapQuery, () => {
+  if (mapSearchTimer) clearTimeout(mapSearchTimer)
+  mapSearchTimer = setTimeout(() => {
+    mapPage.value = 1
+    void loadMaps()
+  }, 300)
+})
+
+watch(
+  steamId,
+  (v) => {
+    if (!v) {
+      mapsData.value = null
+      return
+    }
+    mapMode.value = 'KZT'
+    mapStatus.value = 'completed'
+    mapPage.value = 1
+    mapQuery.value = ''
+    void loadMaps()
+  },
+  { immediate: true },
+)
+
+/** 难度色：用全局 token，未评级用中性底色。 */
+function tierStyle(tier: number): Record<string, string> {
+  return tier > 0
+    ? { backgroundColor: `var(--tier-${tier})`, color: '#fff' }
+    : { backgroundColor: 'var(--bg-subtle)', color: 'var(--text-muted)' }
+}
+
 /** 地图缩略图加载失败时隐藏，露出底色占位。 */
 function onImageError(e: Event): void {
   const img = e.target as HTMLImageElement
@@ -148,15 +242,15 @@ function onImageError(e: Event): void {
         <NInput
           v-model:value="input"
           size="large"
-          placeholder="SteamID / SteamID64 / Steam 个人主页链接"
+          placeholder="SteamID / SteamID64 / STEAM_x:y:z / Steam 个人主页链接"
           clearable
           @keyup.enter="submit"
         >
           <template #prefix>
             <svg
               class="query-icon"
-              width="17"
-              height="17"
+              width="18"
+              height="18"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -171,8 +265,12 @@ function onImageError(e: Event): void {
           </template>
         </NInput>
         <NButton type="primary" size="large" :loading="resolving" class="query-btn" @click="submit">
-          查询
+          查询资料
         </NButton>
+      </div>
+      <div class="query-foot">
+        <span class="query-tip">支持 SteamID64 · STEAM_x:y:z · [U:1:w] · 个人主页链接</span>
+        <RouterLink to="/players" class="query-more">高级查询 →</RouterLink>
       </div>
       <NAlert v-if="queryError" type="error" class="query-alert">{{ queryError }}</NAlert>
       <p v-if="!steamId" class="query-hint">
@@ -354,10 +452,123 @@ function onImageError(e: Event): void {
       上游没有该玩家的榜单记录（可能未上榜或 SteamID64 有误）。
     </NAlert>
 
-    <!-- ================= 最近成绩（保持不变） ================= -->
+    <!-- ================= 地图进度：已完成 / 未完成 ================= -->
+    <section class="section progress-section">
+      <div class="section-header">
+        <h2 class="section-title">地图进度</h2>
+        <span class="section-note">按模式独立统计 · 以主关完成为准 · 点击卡片查看地图详情</span>
+      </div>
+
+      <div class="progress-controls">
+        <div class="mode-switch">
+          <button
+            v-for="m in MODES"
+            :key="m"
+            type="button"
+            class="mode-pill"
+            :class="[`mode-${m.toLowerCase()}`, { active: mapMode === m }]"
+            @click="switchMapMode(m)"
+          >
+            <span class="mode-dot" />
+            {{ m }}
+          </button>
+        </div>
+        <div class="progress-spacer" />
+        <NInput
+          v-model:value="mapQuery"
+          size="small"
+          placeholder="搜索地图名…"
+          clearable
+          class="progress-search"
+        />
+      </div>
+
+      <div class="status-tabs">
+        <button
+          type="button"
+          class="status-tab"
+          :class="{ active: mapStatus === 'completed' }"
+          @click="switchMapStatus('completed')"
+        >
+          已完成
+          <b>{{ mapsData?.completed_total ?? 0 }}</b>
+        </button>
+        <button
+          type="button"
+          class="status-tab"
+          :class="{ active: mapStatus === 'uncompleted' }"
+          @click="switchMapStatus('uncompleted')"
+        >
+          未完成
+          <b>{{ uncompletedTotal }}</b>
+        </button>
+      </div>
+
+      <NSpin :show="mapsLoading">
+        <NAlert v-if="mapsError" type="error" style="margin-bottom: 12px">{{ mapsError }}</NAlert>
+
+        <div v-if="mapsData && mapsData.data.length" class="progress-grid">
+          <RouterLink
+            v-for="m in mapsData.data"
+            :key="m.map_id"
+            :to="`/maps/${m.map_id}`"
+            class="progress-card hover-lift"
+            :title="`查看 ${m.name} 详情`"
+          >
+            <div class="progress-thumb">
+              <div class="progress-fallback">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3Zm0 0v15m6-12v15" />
+                </svg>
+              </div>
+              <img
+                :src="mapImage(m.name, 'thumbnails')"
+                :alt="m.name"
+                loading="lazy"
+                @error="onImageError"
+              />
+            </div>
+            <div class="progress-body">
+              <div class="progress-name" :title="m.name">{{ m.name }}</div>
+              <div class="progress-meta">
+                <span class="tier-pill" :style="tierStyle(m.tier)">{{ formatTier(m.tier) }}</span>
+                <template v-if="m.completed">
+                  <span class="mono progress-time">{{ m.best_time }}</span>
+                  <span class="mono progress-points">{{ m.points }} 分</span>
+                </template>
+                <span v-else class="progress-none">未完成</span>
+              </div>
+            </div>
+          </RouterLink>
+        </div>
+        <div v-else-if="!mapsLoading" class="progress-empty">
+          {{ mapQuery ? '没有匹配的地图' : '暂无数据' }}
+        </div>
+
+        <NPagination
+          v-if="mapsData && mapsData.total > mapsData.per_page"
+          class="progress-pagination"
+          :page="mapPage"
+          :page-count="mapPageCount"
+          size="small"
+          @update:page="onMapPage"
+        />
+      </NSpin>
+    </section>
+
+    <!-- ================= 最近完成地图 ================= -->
     <section class="section recent-section">
       <div class="section-header">
-        <h2 class="section-title">最近成绩</h2>
+        <h2 class="section-title">最近完成地图</h2>
         <span class="section-note">按模式分组 · 仅显示有分成绩 · 点击地图查看详情</span>
       </div>
 
@@ -450,13 +661,23 @@ function onImageError(e: Event): void {
   z-index: -1;
 }
 
-/* ---------- 查询卡 ---------- */
+/* ---------- 玩家查询卡：大号搜索栏 + 顶部主色强调线 ---------- */
 .query-panel {
-  margin-bottom: 20px;
+  position: relative;
+  margin-bottom: 22px;
+  background-color: var(--bg-card);
+}
+
+.query-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background-color: var(--accent);
 }
 
 .query-inner {
-  padding: 18px 20px;
+  padding: 20px;
 }
 
 .query-row {
@@ -470,14 +691,43 @@ function onImageError(e: Event): void {
   min-width: 0;
 }
 
+.query-row :deep(.n-input .n-input__border),
+.query-row :deep(.n-input .n-input__state-border) {
+  border-radius: var(--radius-md);
+}
+
 .query-icon {
   color: var(--text-muted);
 }
 
 .query-btn {
   flex-shrink: 0;
-  min-width: 96px;
+  min-width: 128px;
   font-weight: 600;
+}
+
+.query-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  font-size: 12px;
+}
+
+.query-tip {
+  color: var(--text-muted);
+}
+
+.query-more {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.query-more:hover {
+  color: var(--accent-hover);
 }
 
 .query-alert {
@@ -767,6 +1017,220 @@ function onImageError(e: Event): void {
   color: var(--text-muted);
 }
 
+/* ---------- 地图进度 ---------- */
+.progress-section {
+  margin-top: 30px;
+}
+
+.progress-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.mode-switch {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.mode-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-card);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.mode-pill:hover {
+  border-color: var(--mode-color, var(--accent));
+  color: var(--mode-color, var(--accent));
+}
+
+.mode-pill.active {
+  background-color: var(--mode-color, var(--accent));
+  border-color: var(--mode-color, var(--accent));
+  color: #fff;
+}
+
+.progress-spacer {
+  flex: 1;
+}
+
+.progress-search {
+  max-width: 240px;
+}
+
+.status-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-subtle);
+}
+
+.status-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.status-tab b {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.status-tab.active {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-xs);
+}
+
+.status-tab.active b {
+  color: var(--accent);
+}
+
+.progress-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.progress-card {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-card);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+}
+
+.progress-thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 66px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-subtle);
+  overflow: hidden;
+}
+
+.progress-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.progress-thumb img {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.progress-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+}
+
+.progress-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.progress-card:hover .progress-name {
+  color: var(--accent);
+}
+
+.progress-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.tier-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.progress-time {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.progress-points {
+  color: var(--accent-4);
+  font-weight: 700;
+}
+
+.progress-none {
+  color: var(--text-muted);
+}
+
+.progress-empty {
+  padding: 40px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.progress-pagination {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
 /* ---------- 最近成绩（三模式并排，保持原样） ---------- */
 .recent-section {
   margin-top: 26px;
@@ -939,12 +1403,22 @@ function onImageError(e: Event): void {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .progress-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .recent-columns {
     grid-template-columns: 1fr;
   }
 
   .recent-columns .panel + .panel {
     margin-top: 16px;
+  }
+}
+
+@media (max-width: 860px) {
+  .progress-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -976,6 +1450,15 @@ function onImageError(e: Event): void {
 
   .query-btn {
     width: 100%;
+  }
+
+  .progress-search {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  .progress-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .mode-stats {

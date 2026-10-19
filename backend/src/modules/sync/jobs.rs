@@ -359,9 +359,46 @@ pub async fn run_player(
         }
     }
 
-    // 2) 成绩（用于地图榜、个人记录与本站汇总分）
+    // 2) 成绩：先按模式分页拉 PB（NUB/PRO 主关，覆盖全部完成地图），再拉最近成绩
+    for mode in MODES {
+        for rec_type in ["NUB", "PRO"] {
+            let mut offset = 0i64;
+            loop {
+                let rows = client
+                    .player_pbs(steamid64, mode, rec_type, false, PB_PAGE, offset)
+                    .await?;
+                let got = rows.len() as i64;
+                n += upsert_top_records(pool, steam_id, &rows).await?;
+                if got < PB_PAGE || offset + got >= PB_MAX {
+                    break;
+                }
+                offset += got;
+            }
+        }
+    }
     let page = client.player_records(steamid64, 1000).await?;
-    for r in &page.data {
+    n += upsert_top_records(pool, steam_id, &page.data).await?;
+
+    // 3) 本站汇总分（同一 (地图, 关卡) 取最佳后求和，见 scoring）
+    for mode in MODES {
+        let best = best_points(pool, steam_id, mode).await?;
+        repository::update_local_points(pool, steam_id, mode, scoring::total_points(best)).await?;
+    }
+    Ok(n)
+}
+
+/// PB 单页上限与单玩家最多翻页量（防上游异常）。
+const PB_PAGE: i64 = 1000;
+const PB_MAX: i64 = 20_000;
+
+/// 把一批 gokz.top 成绩幂等写入本站（解析地图 id、补齐玩家档案）。
+async fn upsert_top_records(
+    pool: &PgPool,
+    steam_id: i64,
+    rows: &[TopRecordRow],
+) -> Result<usize, JobError> {
+    let mut n = 0;
+    for r in rows {
         let (Some(map_name), Some(map_ext_id)) = (r.map_name.as_deref(), r.map_id) else {
             continue;
         };
@@ -396,12 +433,6 @@ pub async fn run_player(
         )
         .await?;
         n += 1;
-    }
-
-    // 3) 本站汇总分（同一 (地图, 关卡) 取最佳后求和，见 scoring）
-    for mode in MODES {
-        let best = best_points(pool, steam_id, mode).await?;
-        repository::update_local_points(pool, steam_id, mode, scoring::total_points(best)).await?;
     }
     Ok(n)
 }

@@ -10,6 +10,35 @@
 
 ---
 
+## 2026年10月19日 15时14分26秒 个人资料：最近完成地图 + 全部已完成/未完成地图 + 搜索框优化
+
+- 背景：个人资料只展示最近 20 条成绩，看不到地图完成全貌；且顶级玩家旧同步只拉最近 1000 条成绩，
+  导致完成地图数严重偏少（Flonnych KZT 本地仅 150 张，上游 `maps_completed` 为 955）。
+- 变更内容：
+  - 后端：
+    - `sources/gokz_top.rs` 新增 `player_pbs`（`GET /records/pb`，模式 + 类型 NUB/PRO + 分页）。
+    - 玩家同步 `run_player` 改为按模式分页拉 PB（主关，每页 1000 / 上限 20000）并幂等落库，
+      再拉最近成绩；抽出 `upsert_top_records` 复用写入逻辑。
+    - 新增 `GET /api/v1/players/{steam_id64}/maps?mode=&status=completed|uncompleted&page=&per_page=&q=`：
+      按模式统计主关完成情况，返回分页数据 + `total / completed_total / maps_total`；
+      已完成项带最佳耗时与分数，未完成项仅地图信息；支持地图名模糊搜索。
+    - 迁移 `0007_player_pb_backfill.sql`：重置 `player` 任务，回填全部完成地图。
+  - 前端：
+    - 个人资料「最近成绩」更名为「最近完成地图」（内容不变）。
+    - 新增「地图进度」区块：KZT/SKZ/VNL 切换、「已完成 / 未完成」标签（带计数）、地图名搜索、
+      每页 24 张地图卡片（缩略图 + 名称 + 当前模式 Tier + 最佳耗时/分数），支持分页。
+    - 顶部玩家搜索框重做为大号搜索卡：顶部主色强调线、搜索图标、主按钮、格式提示与「高级查询」入口。
+- 涉及文件：`backend/src/sources/gokz_top.rs`、`backend/src/modules/sync/jobs.rs`、
+  `backend/src/modules/players/{models,dto,repository,service,handlers,routes}.rs`、
+  `backend/migrations/0007_player_pb_backfill.sql`、
+  `frontend/src/features/profile/{ProfilePage.vue,api.ts,types.ts}`、`PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无表结构变更（`0007` 仅重置任务）；新增 `GET /api/v1/players/{steam_id64}/maps`；
+  玩家同步新增外部调用 `/records/pb`。
+- 测试与结果（北京时间）：`cargo fmt`/`build`/`clippy -D warnings`、`cargo test`（**30 passed**）、
+  `npm run build` 全过；迁移已应用并重启后端；实测 Flonnych KZT 完成地图 150 → 958、
+  SKZ 84、VNL 428（与上游基本一致）；接口 KZT 已完成 958 / 未完成 87 / 总计 1045，
+  搜索 `sunstone` 命中 1 张；Playwright 验证模式/状态切换、搜索、分页与 390px 无横向滚动均正常。
+
 ## 2026年10月19日 14时51分06秒 背景留白调和：暖纸底改低饱和暖灰、去掉全页渐变
 
 - 背景：上一版暖纸底色（`#F6F3ED` + 纵向渐变）偏黄/偏橘，大面留白与朱砂红主色互相抢眼，

@@ -1,7 +1,11 @@
 //! 编排层：个人资料按需懒加载（PROJECT §9.5）。
 //! 首次访问（本地无该玩家数据）时入队后台同步，立即返回已有数据 + `syncing = true`。
 
-use super::{models::PlayerProfile, repository};
+use super::{
+    dto::PlayerMapsQuery,
+    models::{PlayerMaps, PlayerProfile},
+    repository,
+};
 use crate::{
     errors::AppError,
     modules::{mode, sync},
@@ -11,6 +15,10 @@ use crate::{
 
 /// 每个模式返回的最近有分成绩条数。
 pub const RECENT_PER_MODE: i64 = 20;
+
+/// 「地图进度」每页条数（与地图列表一致的 24）。
+pub const MAPS_PER_PAGE: i64 = 24;
+const MAPS_PER_PAGE_MAX: i64 = 100;
 
 /// SteamID64：17 位纯数字。
 pub fn parse_steam_id(raw: &str) -> Result<i64, AppError> {
@@ -59,6 +67,54 @@ pub async fn profile(state: &AppState, raw: &str) -> Result<PlayerProfile, AppEr
         syncing: !synced,
         scores,
         recent_records,
+    })
+}
+
+// ------------------------------ 地图进度 ------------------------------
+
+/// 玩家「地图进度」：某模式下的已完成 / 未完成地图，分页 + 名称搜索。
+pub async fn player_maps(
+    state: &AppState,
+    raw: &str,
+    query: &PlayerMapsQuery,
+) -> Result<PlayerMaps, AppError> {
+    let steam_id = parse_steam_id(raw)?;
+    let mode = mode::validate(query.mode.as_deref())?;
+    let status = match query.status.as_deref() {
+        Some("uncompleted") => "uncompleted",
+        _ => "completed",
+    };
+    let page = query.page.unwrap_or(1).max(1);
+    let per_page = query
+        .per_page
+        .unwrap_or(MAPS_PER_PAGE)
+        .clamp(1, MAPS_PER_PAGE_MAX);
+    let q = query.q.as_deref().unwrap_or("").trim().to_string();
+    let offset = (page - 1) * per_page;
+
+    let completed_total = repository::count_completed_maps(&state.db, steam_id, mode).await?;
+    let maps_total = repository::count_maps(&state.db).await?;
+    let (data, total) = if status == "completed" {
+        (
+            repository::completed_maps(&state.db, steam_id, mode, &q, per_page, offset).await?,
+            repository::count_completed_maps_filtered(&state.db, steam_id, mode, &q).await?,
+        )
+    } else {
+        (
+            repository::uncompleted_maps(&state.db, steam_id, mode, &q, per_page, offset).await?,
+            repository::count_uncompleted_maps(&state.db, steam_id, mode, &q).await?,
+        )
+    };
+
+    Ok(PlayerMaps {
+        mode: mode.to_string(),
+        status: status.to_string(),
+        page,
+        per_page,
+        total,
+        completed_total,
+        maps_total,
+        data,
     })
 }
 

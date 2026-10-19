@@ -36,3 +36,31 @@ export interface PlayerProfile {
   scores: PlayerScoreEntry[]
   recent_records: PlayerRecordEntry[]
 }
+
+/** 地图进度条目（已完成 / 未完成）。 */
+export interface PlayerMapEntry {
+  map_id: number
+  name: string
+  /** 当前模式的难度（0 = 未评级） */
+  tier: number
+  /** 已完成主关的最佳耗时；未完成时为 null */
+  best_time: string | null
+  /** 最佳成绩分数；未完成时为 null */
+  points: number | null
+  completed: boolean
+}
+
+/** 地图进度分页结果。 */
+export interface PlayerMapsResult {
+  mode: string
+  status: 'completed' | 'uncompleted'
+  page: number
+  per_page: number
+  /** 当前状态 + 名称搜索下的总数 */
+  total: number
+  /** 该模式已完成地图数 */
+  completed_total: number
+  /** 该模式地图总数 */
+  maps_total: number
+  data: PlayerMapEntry[]
+}

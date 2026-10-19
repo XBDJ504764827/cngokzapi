@@ -49,3 +49,33 @@ pub struct PlayerRecordEntry {
 pub struct ResolvedPlayer {
     pub steam_id64: String,
 }
+
+/// 「地图进度」条目：已完成 / 未完成地图。
+#[derive(Clone, Serialize)]
+pub struct PlayerMapEntry {
+    pub map_id: i64,
+    pub name: String,
+    /// 当前模式的难度（0 = 未评级）。
+    pub tier: i16,
+    /// 已完成主关的最佳耗时（格式化）；未完成时为 None。
+    pub best_time: Option<String>,
+    /// 该最佳成绩的分数；未完成时为 None。
+    pub points: Option<i64>,
+    pub completed: bool,
+}
+
+/// 分页结果 + 标签页计数。
+#[derive(Serialize)]
+pub struct PlayerMaps {
+    pub mode: String,
+    pub status: String,
+    pub page: i64,
+    pub per_page: i64,
+    /// 当前状态 + 名称搜索下的总数。
+    pub total: i64,
+    /// 该模式已完成地图数（不受搜索影响，供标签页展示）。
+    pub completed_total: i64,
+    /// 该模式地图总数。
+    pub maps_total: i64,
+    pub data: Vec<PlayerMapEntry>,
+}

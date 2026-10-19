@@ -2,7 +2,7 @@
 
 use sqlx::{FromRow, PgPool};
 
-use super::models::{PlayerRecordEntry, PlayerScoreEntry};
+use super::models::{PlayerMapEntry, PlayerRecordEntry, PlayerScoreEntry};
 use crate::modules::format::format_duration_ms;
 
 #[derive(FromRow)]
@@ -128,4 +128,178 @@ pub async fn recent_records(
             date: r.date,
         })
         .collect())
+}
+
+// ------------------------------ 地图进度（已完成 / 未完成） ------------------------------
+
+/// 按模式取难度列的 SQL 片段（`$2` 为模式）。
+const TIER_OF_MODE: &str = "CASE $2::text \
+     WHEN 'KZT' THEN m.tier_kzt WHEN 'SKZ' THEN m.tier_skz ELSE m.tier_vnl END";
+
+#[derive(FromRow)]
+struct PlayerMapRow {
+    map_id: i64,
+    name: String,
+    tier: i16,
+    time_ms: Option<i32>,
+    points: Option<i64>,
+}
+
+impl PlayerMapRow {
+    fn into_entry(self, completed: bool) -> PlayerMapEntry {
+        PlayerMapEntry {
+            map_id: self.map_id,
+            name: self.name,
+            tier: self.tier,
+            best_time: self.time_ms.map(format_duration_ms),
+            points: self.points,
+            completed,
+        }
+    }
+}
+
+/// 已完成地图（按名称升序），带主关最佳耗时与分数。
+pub async fn completed_maps(
+    pool: &PgPool,
+    steam_id: i64,
+    mode: &str,
+    query: &str,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<PlayerMapEntry>, sqlx::Error> {
+    let rows: Vec<PlayerMapRow> = sqlx::query_as(&format!(
+        r#"SELECT m.id AS map_id, m.name, {TIER_OF_MODE} AS tier,
+                  best.time_ms AS time_ms, best.points::BIGINT AS points
+           FROM maps m
+           JOIN LATERAL (
+                SELECT r.time_ms, r.points
+                FROM records r
+                WHERE r.map_id = m.id AND r.player_steam_id = $1 AND r.mode = $2
+                  AND r.stage = 0 AND r.is_valid
+                ORDER BY r.time_ms ASC
+                LIMIT 1
+           ) best ON TRUE
+           WHERE ($3 = '' OR m.name ILIKE '%' || $3 || '%')
+           ORDER BY m.name ASC
+           LIMIT $4 OFFSET $5"#
+    ))
+    .bind(steam_id)
+    .bind(mode)
+    .bind(query)
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows.into_iter().map(|r| r.into_entry(true)).collect())
+}
+
+/// 未完成地图（按名称升序）。
+pub async fn uncompleted_maps(
+    pool: &PgPool,
+    steam_id: i64,
+    mode: &str,
+    query: &str,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<PlayerMapEntry>, sqlx::Error> {
+    let rows: Vec<PlayerMapRow> = sqlx::query_as(&format!(
+        r#"SELECT m.id AS map_id, m.name, {TIER_OF_MODE} AS tier,
+                  NULL::int AS time_ms, NULL::bigint AS points
+           FROM maps m
+           WHERE NOT EXISTS (
+                   SELECT 1 FROM records r
+                   WHERE r.map_id = m.id AND r.player_steam_id = $1 AND r.mode = $2
+                     AND r.stage = 0 AND r.is_valid
+                 )
+             AND ($3 = '' OR m.name ILIKE '%' || $3 || '%')
+           ORDER BY m.name ASC
+           LIMIT $4 OFFSET $5"#
+    ))
+    .bind(steam_id)
+    .bind(mode)
+    .bind(query)
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows.into_iter().map(|r| r.into_entry(false)).collect())
+}
+
+/// 已完成地图数（不受名称搜索影响）。
+pub async fn count_completed_maps(
+    pool: &PgPool,
+    steam_id: i64,
+    mode: &str,
+) -> Result<i64, sqlx::Error> {
+    let (n,): (i64,) = sqlx::query_as(
+        r#"SELECT count(*)::BIGINT FROM maps m
+           WHERE EXISTS (
+               SELECT 1 FROM records r
+               WHERE r.map_id = m.id AND r.player_steam_id = $1 AND r.mode = $2
+                 AND r.stage = 0 AND r.is_valid
+           )"#,
+    )
+    .bind(steam_id)
+    .bind(mode)
+    .fetch_one(pool)
+    .await?;
+    Ok(n)
+}
+
+/// 已完成地图数（带名称搜索）。
+pub async fn count_completed_maps_filtered(
+    pool: &PgPool,
+    steam_id: i64,
+    mode: &str,
+    query: &str,
+) -> Result<i64, sqlx::Error> {
+    let (n,): (i64,) = sqlx::query_as(
+        r#"SELECT count(*)::BIGINT FROM maps m
+           WHERE EXISTS (
+               SELECT 1 FROM records r
+               WHERE r.map_id = m.id AND r.player_steam_id = $1 AND r.mode = $2
+                 AND r.stage = 0 AND r.is_valid
+           )
+             AND ($3 = '' OR m.name ILIKE '%' || $3 || '%')"#,
+    )
+    .bind(steam_id)
+    .bind(mode)
+    .bind(query)
+    .fetch_one(pool)
+    .await?;
+    Ok(n)
+}
+
+/// 未完成地图数（带名称搜索）。
+pub async fn count_uncompleted_maps(
+    pool: &PgPool,
+    steam_id: i64,
+    mode: &str,
+    query: &str,
+) -> Result<i64, sqlx::Error> {
+    let (n,): (i64,) = sqlx::query_as(
+        r#"SELECT count(*)::BIGINT FROM maps m
+           WHERE NOT EXISTS (
+               SELECT 1 FROM records r
+               WHERE r.map_id = m.id AND r.player_steam_id = $1 AND r.mode = $2
+                 AND r.stage = 0 AND r.is_valid
+           )
+             AND ($3 = '' OR m.name ILIKE '%' || $3 || '%')"#,
+    )
+    .bind(steam_id)
+    .bind(mode)
+    .bind(query)
+    .fetch_one(pool)
+    .await?;
+    Ok(n)
+}
+
+/// 地图总数（不分模式）。
+pub async fn count_maps(pool: &PgPool) -> Result<i64, sqlx::Error> {
+    let (n,): (i64,) = sqlx::query_as("SELECT count(*)::BIGINT FROM maps")
+        .fetch_one(pool)
+        .await?;
+    Ok(n)
 }

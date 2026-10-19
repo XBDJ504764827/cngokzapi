@@ -4,8 +4,8 @@ use axum::{
 };
 
 use super::{
-    dto::ResolveQuery,
-    models::{PlayerProfile, ResolvedPlayer},
+    dto::{PlayerMapsQuery, ResolveQuery},
+    models::{PlayerMaps, PlayerProfile, ResolvedPlayer},
     service,
 };
 use crate::{errors::AppError, state::AppState};
@@ -26,4 +26,13 @@ pub async fn profile(
     Path(steam_id): Path<String>,
 ) -> Result<Json<PlayerProfile>, AppError> {
     Ok(Json(service::profile(&state, &steam_id).await?))
+}
+
+/// GET /api/v1/players/{steam_id64}/maps —— 地图进度（已完成 / 未完成，分页）。
+pub async fn maps(
+    State(state): State<AppState>,
+    Path(steam_id): Path<String>,
+    Query(query): Query<PlayerMapsQuery>,
+) -> Result<Json<PlayerMaps>, AppError> {
+    Ok(Json(service::player_maps(&state, &steam_id, &query).await?))
 }

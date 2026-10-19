@@ -385,6 +385,32 @@ impl GokzTop<'_> {
             .await
     }
 
+    /// 玩家 PB（`/records/pb`，裸数组）：某模式 + 类型（NUB/PRO）的主关最佳。
+    /// 用于覆盖玩家「全部已完成地图」（`NUB` 一图一条）。
+    pub async fn player_pbs(
+        &self,
+        steamid64: &str,
+        scope: &str,
+        rec_type: &str,
+        is_bonus: bool,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<TopRecordRow>, SourceError> {
+        self.0
+            .get_json(&url(
+                "/records/pb",
+                &[
+                    ("identifier", steamid64.to_string()),
+                    ("scope", scope.to_string()),
+                    ("type", rec_type.to_string()),
+                    ("is_bonus", is_bonus.to_string()),
+                    ("limit", limit.to_string()),
+                    ("offset", offset.to_string()),
+                ],
+            ))
+            .await
+    }
+
     /// 最新记录（按模式）。
     pub async fn recent_records(
         &self,
