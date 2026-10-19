@@ -84,7 +84,7 @@ pub async fn page(
             FROM records
             WHERE player_steam_id = ps.player_steam_id AND mode = ps.mode AND is_valid
         ) r ON TRUE
-        WHERE ps.mode = $1
+        WHERE ps.mode = $1 AND ps.points > 0
           AND ($2 = ''
                OR p.name ILIKE '%' || $2 || '%'
                OR p.steam_id::TEXT LIKE '%' || $2 || '%')
@@ -108,7 +108,7 @@ pub async fn page(
         SELECT count(*)::BIGINT
         FROM player_scores ps
         JOIN players p ON p.steam_id = ps.player_steam_id
-        WHERE ps.mode = $1
+        WHERE ps.mode = $1 AND ps.points > 0
           AND ($2 = ''
                OR p.name ILIKE '%' || $2 || '%'
                OR p.steam_id::TEXT LIKE '%' || $2 || '%')

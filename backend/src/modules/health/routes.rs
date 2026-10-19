@@ -7,4 +7,5 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/health", get(handlers::health))
         .route("/health/ready", get(handlers::ready))
+        .route("/health/sync", get(handlers::sync_health))
 }

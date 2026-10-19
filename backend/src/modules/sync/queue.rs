@@ -33,11 +33,11 @@ pub async fn enqueue_if_stale(
     kind: &str,
     key: &str,
     stale_secs: i64,
-) -> Result<(), sqlx::Error> {
+) -> Result<bool, sqlx::Error> {
     let fresh: Option<(String,)> = sqlx::query_as(
         r#"SELECT status FROM sync_jobs
            WHERE kind = $1 AND key = $2
-             AND updated_at > now() - make_interval(secs => $3)"#,
+             AND COALESCE(last_success_at, updated_at) > now() - make_interval(secs => $3)"#,
     )
     .bind(kind)
     .bind(key)
@@ -46,8 +46,9 @@ pub async fn enqueue_if_stale(
     .await?;
     if fresh.is_none() {
         enqueue(pool, kind, key).await?;
+        return Ok(true);
     }
-    Ok(())
+    Ok(false)
 }
 
 /// 认领一个到期任务，返回 `(id, kind, key, attempts)`。
@@ -83,7 +84,7 @@ pub async fn is_done(pool: &PgPool, kind: &str, key: &str) -> Result<bool, sqlx:
 /// 执行成功。
 pub async fn finish_ok(pool: &PgPool, id: i64) -> Result<(), sqlx::Error> {
     sqlx::query(
-        "UPDATE sync_jobs SET status = 'done', updated_at = now(), last_error = NULL WHERE id = $1",
+        "UPDATE sync_jobs SET status = 'done', last_success_at = now(), updated_at = now(),          last_error = NULL WHERE id = $1",
     )
     .bind(id)
     .execute(pool)

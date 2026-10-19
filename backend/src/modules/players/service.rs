@@ -39,7 +39,11 @@ pub async fn profile(state: &AppState, raw: &str) -> Result<PlayerProfile, AppEr
     // 是否已成功同步过该玩家（按 sync_jobs 的 done 状态判断）：
     // 榜单导入只带来排名/积分，成绩与最近游玩需要玩家级同步，故首次访问仍会入队。
     let synced = sync::queue::is_done(&state.db, sync::KIND_PLAYER, raw).await?;
-    if !synced {
+    if synced {
+        // 7 天 TTL：到期后后台重拉 PB / 最近成绩，修正上游硬删除与改分
+        sync::queue::enqueue_if_stale(&state.db, sync::KIND_PLAYER, raw, sync::DATA_TTL_SECS)
+            .await?;
+    } else {
         sync::worker::enqueue_player(state, raw).await;
     }
 

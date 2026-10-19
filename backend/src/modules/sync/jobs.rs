@@ -142,6 +142,9 @@ pub async fn run_leaderboard(
     events: &EventBus,
 ) -> Result<usize, JobError> {
     let client = GokzTop(src);
+    // 全量回扫（limit 很大）结束后清理掉榜行；快速刷新不做删除。
+    let full = limit > 1_000_000;
+    let started_at = Utc::now();
     let mut n = 0;
     let mut offset = 0i64;
     let mut enrich: Vec<String> = Vec::new();
@@ -191,6 +194,12 @@ pub async fn run_leaderboard(
     for steamid64 in profile_enrich {
         super::queue::enqueue_if_stale(pool, super::KIND_PLAYER_PROFILE, &steamid64, 24 * 3600)
             .await?;
+    }
+    if full {
+        let removed = repository::delete_stale_scores(pool, mode, started_at).await?;
+        if removed > 0 {
+            tracing::info!(mode, removed, "全量榜单已清理掉榜行");
+        }
     }
     events.emit("leaderboard", "updated", None);
     Ok(n)

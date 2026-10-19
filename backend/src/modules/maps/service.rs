@@ -37,7 +37,11 @@ pub async fn detail(state: &AppState, id: i64) -> Result<MapDetail, AppError> {
         // 整图同步是否已完成（按 sync_jobs 的 done 状态判断，避免「导入过部分成绩就以为齐了」）
         let job_key = format!("{}|{}", map.name, m);
         let synced = sync::queue::is_done(&state.db, sync::KIND_MAP, &job_key).await?;
-        if !synced {
+        if synced {
+            // 7 天 TTL：过期后后台重同步，不阻塞页面（用于修正硬删除/改分）
+            sync::queue::enqueue_if_stale(&state.db, sync::KIND_MAP, &job_key, sync::DATA_TTL_SECS)
+                .await?;
+        } else {
             sync::worker::enqueue_map(state, &map.name, m).await;
             syncing = true;
         }

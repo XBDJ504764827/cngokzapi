@@ -22,3 +22,6 @@ pub const KIND_PLAYER: &str = "player";
 pub const KIND_PLAYER_PROFILE: &str = "player_profile";
 pub const KIND_SERVERS: &str = "servers";
 pub const KIND_BANS: &str = "bans";
+
+/// 冷数据复检 TTL：地图详情 / 玩家档案 7 天未更新则后台重同步。
+pub const DATA_TTL_SECS: i64 = 7 * 24 * 3600;

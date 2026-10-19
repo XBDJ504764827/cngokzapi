@@ -5,7 +5,7 @@ use sqlx::postgres::{PgPool, PgPoolOptions};
 /// 懒连接池：`connect_lazy` 不建连，首次查询才连接；无库时启动不受影响。
 pub fn connect_lazy(database_url: &str) -> PgPool {
     PgPoolOptions::new()
-        .max_connections(8)
+        .max_connections(16)
         .connect_lazy(database_url)
         .expect("DATABASE_URL 非法")
 }

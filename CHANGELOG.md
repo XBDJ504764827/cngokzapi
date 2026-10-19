@@ -10,6 +10,35 @@
 
 ---
 
+## 2026年10月19日 19时34分31秒 P0 维护能力：同步健康接口 + 7 天 TTL + 全量榜单清理
+
+- 背景：实时增量已就绪，但缺监控、冷数据 TTL、掉榜行清理；且 3 个全量榜单长任务会占满
+  worker 并发，把 10s/30s 热任务饿死。
+- 变更内容：
+  - 新增 `GET /api/v1/health/sync`：输出 recent / record_updates / bans / servers /
+    leaderboard_top / leaderboard_full / maps 的 `last_success`、`lag_seconds`、pending/running/
+    failed/dead、告警阈值与 `warnings`；`ok=false` 或 `warnings` 非空即可告警。
+    阈值：recent 120s、record_updates 600s、bans 600s、servers 900s、榜单前 1000 1800s、
+    全量榜单 12h、地图 48h。
+  - `sync_jobs` 新增 `last_success_at`（迁移 `0012`）：`finish_ok` 时写入，`enqueue` 不覆盖；
+    TTL 与健康检查均以最后成功时间为准。
+  - 冷数据 TTL：地图详情与玩家 PB 超过 **7 天**未成功同步时，访问时后台重同步
+    （不阻塞页面，用于修正上游硬删除/改分）。
+  - 全量榜单完成后删除本期未命中的 `source='gokz_top'` 行（保留本地 `source='local'`）；
+    榜单查询增加 `points > 0`，剔除 0 分本地行。实测清理 SKZ 14 行 / VNL 25 行。
+  - 调度修复：worker `MAX_INFLIGHT` 4→8、DB 连接池 8→16，长任务不再饿死热任务；
+    全量榜单不再每次重启都重跑，而是按 `last_success_at` 判断是否超过 6 小时。
+- 涉及文件：`backend/src/modules/health/{mod,models,repository,service,handlers,routes}.rs`、
+  `backend/src/modules/sync/{mod,queue,worker,jobs,repository}.rs`、
+  `backend/src/modules/maps/service.rs`、`backend/src/modules/players/service.rs`、
+  `backend/src/modules/leaderboard/repository.rs`、`backend/src/infrastructure/db.rs`、
+  `backend/migrations/0012_sync_last_success.sql`、`PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：`sync_jobs` 新增 `last_success_at`；新增 `GET /api/v1/health/sync`。
+- 测试与结果（北京时间）：`cargo fmt`/`build`/`clippy -D warnings`、`cargo test`（31 passed）通过；
+  TTL 实测：把地图/玩家最后成功时间改为 8 天前，访问页面后对应任务重新入队（running）；
+  全量清理后三模式总数与上游完全一致（KZT 103,336 / SKZ 9,415 / VNL 3,443）；
+  `/health/sync` 返回 `ok=true`、`warnings=[]`，各任务延迟均在阈值内。
+
 ## 2026年10月19日 18时57分42秒 排行榜全量导入 + 服务端分页；服务器列表排除 CS2
 
 - 背景：排行榜只导入了每个模式前 200 名，而上游实际有 KZT 103,336 / SKZ 9,415 / VNL 3,443 人；

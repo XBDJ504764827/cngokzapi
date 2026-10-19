@@ -571,6 +571,24 @@ pub async fn upsert_leaderboard_batch(
     Ok(rows.len())
 }
 
+/// 全量榜单完成后清理本期未命中的上游分数行（`source='gokz_top'`），
+/// 本地 `source='local'` 的汇总分保留。
+pub async fn delete_stale_scores(
+    pool: &PgPool,
+    mode: &str,
+    before: DateTime<Utc>,
+) -> Result<u64, sqlx::Error> {
+    let res = sqlx::query(
+        "DELETE FROM player_scores \
+         WHERE mode = $1 AND source = 'gokz_top' AND updated_at < $2",
+    )
+    .bind(mode)
+    .bind(before)
+    .execute(pool)
+    .await?;
+    Ok(res.rows_affected())
+}
+
 /// 写回「本站汇总分」（计分引擎结果，PROJECT §9.4）。
 pub async fn update_local_points(
     pool: &PgPool,

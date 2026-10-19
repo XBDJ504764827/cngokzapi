@@ -273,6 +273,9 @@ JSON 一律 snake_case，与前后端类型一一对应。
   （`kztimer_recent_id` / `gokz_records_updated` / `gokz_bans_updated`）。
 - `0010_ban_cascade.sql`（2026-10-19）：把已有封禁玩家的成绩置为 `is_valid=false` 并删除其
   `player_scores`（新封禁由 `run_bans` 实时级联）。
+- `0011_leaderboard_full.sql`（2026-10-19）：入队三模式排行榜全量导入任务。
+- `0012_sync_last_success.sql`（2026-10-19）：`sync_jobs` 增列 `last_success_at`，供
+  `/health/sync` 与 TTL 判断使用（`enqueue` 覆盖 `updated_at` 不影响最后成功时间）。
 - `records` 增列：`source`（`plugin`/`gokz_top`/`kztimer`）、`external_id`（UNIQUE）、
   `stage`、`tickrate`、`teleports`、`points_local`（本站口径，可空）、
   `origin_server_id`、`server_name`、`server_group`、`wr_time_ms`、`is_valid`、`updated_at`；
@@ -302,7 +305,8 @@ JSON 一律 snake_case，与前后端类型一一对应。
 - 前缀：`/api/v1`，JSON，UTF-8。已落地（2026-10-17）：
   - 实时推送：`GET /api/v1/stream?topics=records,map:44,player:<steamid64>,bans,leaderboard,stats`
     （SSE；`topics` 为空订阅全部；事件体 `{ topic, kind, id?, at }`，15s 心跳）
-  - 健康：`GET /api/v1/health`、`GET /api/v1/health/ready`
+  - 健康：`GET /api/v1/health`、`GET /api/v1/health/ready`、
+    `GET /api/v1/health/sync`（各任务族延迟/积压/失败/游标与告警阈值）
   - 榜单：`GET /api/v1/leaderboard?mode=&page=&per_page=&query=&sort=&activity=`
     （分页信封 `{ data, pagination: { page, per_page, total } }`；`sort` = points/maps/avg/rating，
     `activity` = all/7/30/inactive；`rank` 为当前排序下的跨分页名次）
@@ -468,6 +472,12 @@ JSON 一律 snake_case，与前后端类型一一对应。
     无效并删除其榜单汇总（解禁/上游恢复后由 `record_updates` 自动重新计入）；
   - `leaderboard`：由每日改为**每 10 分钟**刷新，前 N 名玩家补全改为 6 小时内不重复入队；
   - 游标持久化在 `sync_state` 表，重启不丢；`upsert_record_state` 兼容 KZTimer/gokz 双来源自然键去重。
+- **长期维护（2026-10-19 落地）**：
+  - 冷数据 TTL：地图详情 / 玩家 PB 7 天未成功同步则访问时后台重同步（修正硬删除/改分）；
+  - 全量榜单结束后清理本期未命中的 `source='gokz_top'` 行，避免掉榜玩家长期残留；
+  - `GET /api/v1/health/sync` 输出各任务延迟、pending/running/failed/dead、游标与告警；
+  - worker 并发 8（长任务不再饿死 10s/30s 热任务），DB 连接池 16；全量榜单按最后成功时间
+    决定是否在重启后重跑，避免每次部署都全量回扫。
 - **浏览器推送（SSE，2026-10-19 落地）**：新增 `GET /api/v1/stream`，写入端（ingest / recent /
   record_updates / bans / leaderboard）发布到进程内 `EventBus`；前端 `useLiveReload` 按主题
   （`records` / `map:{id}` / `player:{steamid64}` / `bans` / `leaderboard` / `stats`）400ms 防抖刷新。

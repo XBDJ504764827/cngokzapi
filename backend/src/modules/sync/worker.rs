@@ -3,6 +3,8 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use chrono::Utc;
+
 use tokio::sync::Semaphore;
 use tokio::time::Instant;
 
@@ -12,7 +14,7 @@ use crate::state::AppState;
 /// 每轮最多认领的任务数。
 const BATCH: usize = 8;
 /// 同时在跑的任务数上限（共享 `SourceClient` 的限速闸门，不会打爆上游）。
-const MAX_INFLIGHT: usize = 4;
+const MAX_INFLIGHT: usize = 8;
 /// 轮询间隔。
 const TICK: Duration = Duration::from_secs(2);
 
@@ -58,7 +60,18 @@ pub async fn run(state: AppState) {
     let mut last_servers = Instant::now() - Duration::from_secs(SERVERS_EVERY);
     let mut last_bans = Instant::now() - Duration::from_secs(BANS_EVERY);
     let mut last_leaderboard = Instant::now() - Duration::from_secs(LEADERBOARD_EVERY);
-    let mut last_leaderboard_full = Instant::now() - Duration::from_secs(LEADERBOARD_FULL_EVERY);
+    // 全量榜单不在每次重启时重跑：按库里最后成功时间计算下次到期。
+    let full_age = sqlx::query_scalar::<_, Option<chrono::DateTime<Utc>>>(
+        "SELECT min(last_success_at) FROM sync_jobs          WHERE kind = 'leaderboard' AND key LIKE '%:full'",
+    )
+    .fetch_one(&state.db)
+    .await
+    .ok()
+    .flatten()
+    .map(|t| (Utc::now() - t).num_seconds().max(0) as u64)
+    .unwrap_or(LEADERBOARD_FULL_EVERY);
+    let mut last_leaderboard_full =
+        Instant::now() - Duration::from_secs(full_age.min(LEADERBOARD_FULL_EVERY));
     let mut last_maps = Instant::now() - Duration::from_secs(MAPS_EVERY);
     let inflight = Arc::new(Semaphore::new(MAX_INFLIGHT));
 
