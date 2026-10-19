@@ -10,6 +10,21 @@
 
 ---
 
+## 2026年10月19日 14时51分06秒 背景留白调和：暖纸底改低饱和暖灰、去掉全页渐变
+
+- 背景：上一版暖纸底色（`#F6F3ED` + 纵向渐变）偏黄/偏橘，大面留白与朱砂红主色互相抢眼，
+  且顶部与底部双色渐变显得不干净。
+- 变更内容：
+  - `styles/global.css`：`--bg-page` 由 `#F6F3ED` 改为低饱和暖灰 `#F1F0ED`，同步下调
+    `--bg-subtle/--bg-hover/--tint-panel/--row-hover/--border-color/--border-strong` 的棕色调；
+    `body` 删除纸感纵向渐变，改为平涂底色。
+  - `app/theme.ts`：`bodyColor/hoverColor/borderColor/dividerColor/tableColorHover` 同步改为中性暖灰，
+    文字色由棕调改为中性灰棕，卡片仍为白色（靠边框 + 微阴影分层）。
+- 涉及文件：`frontend/src/styles/global.css`、`frontend/src/app/theme.ts`、`PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无。
+- 测试与结果（北京时间）：`npm run build` 通过；Playwright 1440 / 980 / 390 全站 10 页无报错、
+  无新增横向滚动；白底卡片与背景留白对比舒适，朱砂红主色仍保持鲜明。
+
 ## 2026年10月19日 14时44分03秒 全站色彩体系重做：暖调朱砂红 + 松绿/赭石/石板蓝（平涂无渐变）
 
 - 背景：原设计为「白底 + 单一墨绿主色」，长时间浏览易审美疲劳；首次多色方案（靛蓝/紫罗兰渐变）

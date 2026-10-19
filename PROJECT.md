@@ -96,14 +96,16 @@
   配合工具类 `.mode-kzt/.mode-skz/.mode-vnl` 输出 `--mode-color/--mode-soft/--mode-ring`；
   统计卡等用 `.tone-rust/.tone-teal/.tone-ochre/.tone-slate` 输出 `--stat-color/--stat-soft`。
 - 难度色为 8 档 `--tier-1`～`--tier-8`（由冷到暖、越高越深，土色系），`.tier-1`～`.tier-8` 直接引用。
+- 背景与留白：整体为**低饱和暖灰底**（`--bg-page`），卡片用白色，靠边框与微阴影分层；
+  不使用全页渐变/色块背景，避免大面留白与朱砂红互相抢眼。
 - 页面骨架：`.page-head`（可配 `.page-head-row` + `.page-head-actions`，标题区放计数徽章）
-  + `.panel`/`.panel-head`/`.panel-body`（表格与榜单统一容器，常驻微阴影、表头浅靛蓝渐变）；
+  + `.panel`/`.panel-head`/`.panel-body`（表格与榜单统一容器，常驻微阴影、表头浅朱砂底）；
   统计卡等可点击卡片加 `.hover-lift`。
 - 交互层次：导航当前项为**主色平涂实心**；主操作按钮（如「加入游戏」「查询」）用 `type="primary"`
   （全局覆写为主色平涂 + 主色投影），次操作用默认按钮（白底 + 强描边 + 微阴影），hover 浮起；
   玩家名等实体用主色文字链接；表格表头浅朱砂底 + 朱砂字。
 - 公共组件：`PlayerCell`（头像 + 名称 + SteamID64；名称默认链到资料页，`compact` 可隐藏
-  SteamID64/缩小头像）、`RankBadge`（前 3 名金银铜名次徽章，用 `--medal-*` 渐变）；
+  SteamID64/缩小头像）、`RankBadge`（前 3 名金银铜名次徽章，用 `--medal-*` 平涂）；
   表格列渲染用 `h()` 创建的类不会被 scoped CSS 命中，必须用组件或 `:deep()`；
   Boolean prop 未传时 Vue 会转为 false，需要默认 true 请用 `withDefaults`。
 - 地图/服务器缩略图必须提供缺图占位（显示地图名/图标）；Hero 使用极浅的朱砂单色晕染，
@@ -622,7 +624,7 @@ POST /api/v2.0/records                 X-ApiKey: <key>
   客户端；玩家同步一并写回头像与国籍，并重置 `player` 任务回填历史数据。
 - 当前：全站色彩体系重做（2026年10月19日，`develop`）：由「白底 + 单一墨绿」改为暖调多色体系——
   朱砂红主色 + 松绿/赭石/石板蓝辅助色 + KZT/SKZ/VNL 三模式专属色；全局改为**平涂无渐变**，
-  `global.css` / `theme.ts` 重写，新增模式与色调工具类、8 档土色系难度色、平涂奖牌色、暖纸感背景；
+  `global.css` / `theme.ts` 重写，新增模式与色调工具类、8 档土色系难度色、平涂奖牌色、低饱和暖灰底；
   导航/主按钮/Logo 改为主色平涂，首页四张统计卡分色，榜单/最新记录/个人资料/地图详情按模式着色；
   触及 `DefaultLayout`、`HomePage`、`LeaderboardPage`、`RecordsPage`、`ProfilePage`、`MapsPage`、
   `MapDetailPage`、`ServersPage`、`RankBadge` 与两份 token 文件；无 API/DB 变化。

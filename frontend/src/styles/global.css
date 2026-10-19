@@ -8,20 +8,20 @@
 }
 
 :root {
-  /* ---------- 背景与文字（暖中性色） ---------- */
-  --bg-page: #f6f3ed;
+  /* ---------- 背景与文字（低饱和暖灰，避免与朱砂红撞成「橘背景 + 死白」） ---------- */
+  --bg-page: #f1f0ed;
   --bg-card: #ffffff;
-  --bg-subtle: #efeae1;
-  --bg-hover: #e7e1d6;
-  --bg-nav: rgba(252, 250, 246, 0.88);
+  --bg-subtle: #e9e8e4;
+  --bg-hover: #dfded9;
+  --bg-nav: rgba(250, 250, 249, 0.9);
   --bg-card-translucent: rgba(255, 255, 255, 0.95);
-  --tint-panel: #faf7f1;
-  --row-hover: #faf7f2;
-  --text-primary: #23201c;
-  --text-secondary: #5b544a;
-  --text-muted: #8a8276;
-  --border-color: #e4ded2;
-  --border-strong: #cfc7b8;
+  --tint-panel: #f8f8f6;
+  --row-hover: #fafaf8;
+  --text-primary: #211f1c;
+  --text-secondary: #56524b;
+  --text-muted: #86827a;
+  --border-color: #e2e0db;
+  --border-strong: #cbc9c2;
 
   /* ---------- 主色：朱砂红 ---------- */
   --accent: #c1432b;
@@ -105,10 +105,8 @@
 
 body {
   font-family: var(--font-base);
+  /* 平涂低饱和底色，避免大面留白与朱砂红相互抢眼 */
   background-color: var(--bg-page);
-  /* 极轻的纸感纵向渐变，不做事发光的「极光」色块 */
-  background-image: linear-gradient(180deg, #f8f5ef 0%, #f3efe7 100%);
-  background-repeat: no-repeat;
   color: var(--text-primary);
   line-height: 1.6;
   min-height: 100vh;
