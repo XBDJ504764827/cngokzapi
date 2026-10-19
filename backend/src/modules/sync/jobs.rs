@@ -7,6 +7,7 @@ use sqlx::PgPool;
 
 use super::repository::{self, BanUpsert, MapUpsert, RecordUpsert, ScoreUpsert, ServerUpsert};
 use crate::{
+    events::EventBus,
     modules::scoring,
     sources::{
         gokz_top::{GokzTop, TopRecordRow},
@@ -136,6 +137,7 @@ pub async fn run_leaderboard(
     src: &SourceClient,
     mode: &str,
     limit: i64,
+    events: &EventBus,
 ) -> Result<usize, JobError> {
     let client = GokzTop(src);
     let mut n = 0;
@@ -184,6 +186,7 @@ pub async fn run_leaderboard(
     for steamid64 in enrich {
         super::queue::enqueue_if_stale(pool, super::KIND_PLAYER, &steamid64, 6 * 3600).await?;
     }
+    events.emit("leaderboard", "updated", None);
     Ok(n)
 }
 
@@ -195,7 +198,11 @@ const RECENT_FETCH: i64 = 1000;
 const CURSOR_KZTIMER_RECENT: &str = "kztimer_recent_id";
 
 /// 拉取最新成绩：单任务处理三模式，按 record id 游标去重，只重算新增记录涉及的玩家。
-pub async fn run_recent(pool: &PgPool, src: &SourceClient) -> Result<usize, JobError> {
+pub async fn run_recent(
+    pool: &PgPool,
+    src: &SourceClient,
+    events: &EventBus,
+) -> Result<usize, JobError> {
     let rows = Kztimer(src).recent_records(RECENT_FETCH).await?;
     let cursor = repository::get_sync_state(pool, CURSOR_KZTIMER_RECENT)
         .await?
@@ -246,6 +253,7 @@ pub async fn run_recent(pool: &PgPool, src: &SourceClient) -> Result<usize, JobE
         .await?;
         if inserted {
             touched.push((steam_id, mode.to_string()));
+            events.emit_record("created", map_id, steam_id);
             n += 1;
         }
     }
@@ -266,7 +274,11 @@ const CURSOR_GOKZ_RECORDS: &str = "gokz_records_updated";
 /// - 新成绩：正常落库；
 /// - `is_valid=false`：把本地记录标为无效（地图榜 / 最近成绩立即消失）；
 /// - 改分：更新 `points` 并重算受影响玩家。
-pub async fn run_record_updates(pool: &PgPool, src: &SourceClient) -> Result<usize, JobError> {
+pub async fn run_record_updates(
+    pool: &PgPool,
+    src: &SourceClient,
+    events: &EventBus,
+) -> Result<usize, JobError> {
     let since = repository::get_sync_state(pool, CURSOR_GOKZ_RECORDS)
         .await?
         .unwrap_or_else(|| iso_now_minus(600));
@@ -330,6 +342,15 @@ pub async fn run_record_updates(pool: &PgPool, src: &SourceClient) -> Result<usi
             .await?;
             if changed {
                 touched.push((steam_id, mode.to_string()));
+                events.emit_record(
+                    if r.is_valid.unwrap_or(true) {
+                        "updated"
+                    } else {
+                        "invalidated"
+                    },
+                    map_id,
+                    steam_id,
+                );
                 n += 1;
             }
         }
@@ -670,7 +691,11 @@ const CURSOR_GOKZ_BANS: &str = "gokz_bans_updated";
 
 /// 增量拉取封禁，并在封禁发生时级联失效该玩家的成绩与榜单。
 /// gokz.top 的封禁类型均为作弊类（hack/macro/ban_evasion/exploiting/boosting）。
-pub async fn run_bans(pool: &PgPool, src: &SourceClient) -> Result<usize, JobError> {
+pub async fn run_bans(
+    pool: &PgPool,
+    src: &SourceClient,
+    events: &EventBus,
+) -> Result<usize, JobError> {
     let since = repository::get_sync_state(pool, CURSOR_GOKZ_BANS)
         .await?
         .unwrap_or_else(|| iso_now_minus(3600));
@@ -725,6 +750,9 @@ pub async fn run_bans(pool: &PgPool, src: &SourceClient) -> Result<usize, JobErr
             .await?;
             // 级联：作弊封禁 → 成绩失效 + 移出排行榜（下一次解禁/上游恢复时自动重新计入）
             repository::invalidate_player_records(pool, steam_id).await?;
+            events.emit("bans", "created", None);
+            events.emit(&format!("player:{steam_id}"), "invalidated", Some(steam_id));
+            events.emit("stats", "updated", None);
             n += 1;
         }
         offset += got;

@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::{config::AppConfig, infrastructure, sources::SourceClient};
+use crate::{config::AppConfig, events::EventBus, infrastructure, sources::SourceClient};
 
 /// 共享状态。`PgPool` 与 `redis::Client` 均为廉价 Clone，
 /// `SourceClient` 内含限速闸门（非 Clone）故用 `Arc` 共享。
@@ -13,6 +13,8 @@ pub struct AppState {
     pub redis: redis::Client,
     /// 外部数据源客户端（限速 + 重试），见 PROJECT §9.9。
     pub source: Arc<SourceClient>,
+    /// 进程内事件总线（SSE 推送给前端）。
+    pub events: EventBus,
 }
 
 impl AppState {
@@ -26,6 +28,7 @@ impl AppState {
             db,
             redis,
             source: Arc::new(SourceClient::new()),
+            events: EventBus::new(),
         }
     }
 }

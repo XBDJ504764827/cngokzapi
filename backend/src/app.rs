@@ -26,6 +26,7 @@ pub fn create_app(state: AppState) -> Router {
         .merge(modules::servers::routes::routes())
         .merge(modules::players::routes::routes())
         .merge(modules::stats::routes::routes())
+        .merge(modules::stream::routes::routes())
         .merge(modules::ingest::routes::routes())
         .fallback(api_not_found)
         .with_state(state.clone());

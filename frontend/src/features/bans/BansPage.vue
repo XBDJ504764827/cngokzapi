@@ -4,6 +4,7 @@ import { NAlert, NDataTable, NEmpty, NInput, NPagination, NSpin, NTag } from 'na
 import type { DataTableColumns } from 'naive-ui'
 import PlayerCell from '@/components/PlayerCell.vue'
 import { useApi } from '@/composables/useApi'
+import { useLiveReload } from '@/composables/useLive'
 import { fetchBans } from './api'
 import type { BanEntry } from './types'
 
@@ -21,6 +22,9 @@ watch(query, () => {
   }
 })
 watch(page, () => void reload())
+
+// 新封禁到达时自动刷新
+useLiveReload(() => ['bans'], () => void reload())
 
 const rows = computed<BanEntry[]>(() => data.value?.data ?? [])
 const total = computed(() => data.value?.pagination.total ?? 0)

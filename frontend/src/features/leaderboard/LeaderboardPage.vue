@@ -4,6 +4,7 @@ import { NAlert, NAvatar, NInput, NSelect, NSpin, NTag } from 'naive-ui'
 import { RouterLink } from 'vue-router'
 import RankBadge from '@/components/RankBadge.vue'
 import { useApi } from '@/composables/useApi'
+import { useLiveReload } from '@/composables/useLive'
 import { MODES } from '@/types/common'
 import type { Mode } from '@/types/common'
 import { avatarUrl } from '@/utils/avatar'
@@ -15,7 +16,7 @@ import type { ActivityFilter, LeaderboardEntry, SortKey } from './types'
 const TOP_N = 50
 
 // 三模式一次拉取，同页并排展示，互不切换。
-const { data, loading, error } = useApi(async () => {
+const { data, loading, error, reload } = useApi(async () => {
   const [kzt, skz, vnl] = await Promise.all([
     fetchLeaderboard('KZT'),
     fetchLeaderboard('SKZ'),
@@ -23,6 +24,9 @@ const { data, loading, error } = useApi(async () => {
   ])
   return { KZT: kzt, SKZ: skz, VNL: vnl } as Record<Mode, LeaderboardEntry[]>
 })
+
+// 榜单每 10 分钟刷新一次，事件到达时自动更新
+useLiveReload(() => ['leaderboard'], () => void reload())
 
 const query = ref('')
 const activity = ref<ActivityFilter>('all')

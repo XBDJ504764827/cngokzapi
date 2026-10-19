@@ -199,13 +199,16 @@ pub async fn ingest_batch(
     let mut touched: Vec<(i64, &'static str)> = Vec::new();
     for item in items {
         match ingest_one(state, auth, item).await {
-            Ok(result) => {
+            Ok((result, map_id)) => {
                 if result.status == "accepted" {
                     if let (Ok(steam_id), Ok(m)) = (
                         parse_steam_id64(&item.steam_id64),
                         normalize_mode(&serde_json::json!(item.mode)),
                     ) {
                         touched.push((steam_id, m));
+                        if let Some(map_id) = map_id {
+                            state.events.emit_record("created", map_id, steam_id);
+                        }
                     }
                 }
                 results.push(result);
@@ -225,7 +228,7 @@ async fn ingest_one(
     state: &AppState,
     auth: &AuthContext,
     item: &IngestItem,
-) -> Result<IngestResult, ItemError> {
+) -> Result<(IngestResult, Option<i64>), ItemError> {
     let steam_id = parse_steam_id64(&item.steam_id64).map_err(ItemError::Reject)?;
     let m = normalize_mode(&serde_json::json!(item.mode)).map_err(ItemError::Reject)?;
     if item.stage < 0 {
@@ -283,7 +286,10 @@ async fn ingest_one(
     .await?;
 
     if !inserted {
-        return Ok(IngestResult::duplicate(item.record_uuid.clone()));
+        return Ok((
+            IngestResult::duplicate(item.record_uuid.clone()),
+            Some(map_id),
+        ));
     }
     let place = repository::place_in_board(
         &state.db,
@@ -294,7 +300,10 @@ async fn ingest_one(
         item.time_ms,
     )
     .await?;
-    Ok(IngestResult::accepted(item.record_uuid.clone(), place))
+    Ok((
+        IngestResult::accepted(item.record_uuid.clone(), place),
+        Some(map_id),
+    ))
 }
 
 /// GlobalAPI 兼容上报（字段与官方客户端一致）。
@@ -381,6 +390,7 @@ pub async fn ingest_compat(
     let overall = repository::place_overall(&state.db, map_id, m, item.stage, time_ms).await?;
     let mut touched = vec![(steam_id, m)];
     refresh_local_points(state, &mut touched).await?;
+    state.events.emit_record("created", map_id, steam_id);
 
     Ok(CompatResponse {
         place,

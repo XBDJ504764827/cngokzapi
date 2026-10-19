@@ -10,6 +10,34 @@
 
 ---
 
+## 2026年10月19日 18时10分10秒 SSE 页面秒级自动刷新（Phase 5）
+
+- 背景：Phase 1-4 已把服务端数据更新压到 10s–10min，但浏览器仍需手动刷新/切换页面才能看到变化。
+- 变更内容：
+  - 后端新增 `EventBus`（tokio broadcast，256 缓冲）与 `GET /api/v1/stream?topics=`（Axum SSE，15s 心跳）。
+    事件体 `{ topic, kind, id?, at }`，主题：`records` / `map:{id}` / `player:{steamid64}` /
+    `bans` / `leaderboard` / `stats`。
+  - 写入端发布事件：ingest 上报（records/map/player/stats）；`recent`（新成绩）、
+    `record_updates`（改分/软删除）、`bans`（封禁 + 玩家失效）、`leaderboard`（榜单刷新）。
+  - 前端新增 `composables/useLive.ts` 的 `useLiveReload(topics, reload, delay=400)`：
+    EventSource 订阅 + 防抖刷新 + 卸载时关闭，断线由浏览器自动重连。
+  - 接入页面：首页（stats，3s 防抖）、最新记录（records）、排行榜（leaderboard）、
+    地图详情（map:{id}）、个人资料（player:{steamid64}，同时刷新地图进度）、封禁名单（bans）。
+- 涉及文件：`backend/src/events.rs`、`backend/src/state.rs`、`backend/src/modules/stream/*`、
+  `backend/src/app.rs`、`backend/src/modules/ingest/service.rs`、
+  `backend/src/modules/sync/{jobs,worker}.rs`、`backend/Cargo.toml`、
+  `frontend/src/composables/useLive.ts`、
+  `frontend/src/features/{home/HomePage.vue,records/RecordsPage.vue,leaderboard/LeaderboardPage.vue,
+  maps/MapDetailPage.vue,profile/ProfilePage.vue,bans/BansPage.vue}`、`PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无表结构变更；新增 `GET /api/v1/stream`（SSE）。
+- 测试与结果（北京时间）：`cargo fmt`/`build`/`clippy -D warnings`、`cargo test`（30 passed）、
+  `npm run build` 全过；`curl -N` 验证收到 `records` / `map:961` 事件；
+  Playwright 实测：地图详情在事件到达后自动重新拉取 `/api/v1/maps/961`（无跳转），
+  最新记录与个人资料分别自动刷新 `/api/v1/records`、`/api/v1/players/{id}`；
+  页面分别订阅 `stream?topics=records`、`map:961`、`player:7656…`；无控制台报错。
+- 当前端到端延迟：自建服/第三方服写入 → 同步任务（10–30s）→ SSE → 页面 400ms 防抖后刷新；
+  即页面最多滞后约 10–30s，且无需手动刷新。
+
 ## 2026年10月19日 17时47分44秒 实时增量同步 Phase 1-4：10s 成绩 / 30s 软删除 / 60s 封禁级联 / 10 分钟榜单
 
 - 背景：数据虽已真实，但更新靠定时全量轮询（成绩 60s、封禁 1h、榜单 24h，且不处理删除/失效），

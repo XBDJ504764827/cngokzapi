@@ -21,4 +21,5 @@ pub mod records;
 pub mod scoring;
 pub mod servers;
 pub mod stats;
+pub mod stream;
 pub mod sync;

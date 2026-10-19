@@ -195,7 +195,7 @@ frontend/src/
 ├── features/<domain>/  # 业务模块：页面 + api.ts + types.ts
 ├── services/http.ts     # 全站唯一 fetch 出口（错误体归一为 ApiError）
 ├── stores/       # Pinia（app.currentMode 固定 KZT，供地图页使用；全站不再提供模式切换）
-├── composables/  # useApi（{ data, loading, error, reload } 范式）
+├── composables/  # useApi（{ data, loading, error, reload } 范式）+ useLiveReload（SSE 自动刷新）
 ├── types/        # 公共类型（JSON 一律 snake_case，与后端 models 一一对应）
 └── utils/        # 纯展示函数
 ```
@@ -216,7 +216,7 @@ cngokzapi/
 │   │   ├── features/     # home/players/leaderboard/records/servers/maps/profile/bans/auth
 │   │   ├── services/     # http.ts 全站唯一 fetch 出口
 │   │   ├── stores/       # Pinia（app.currentMode，固定 KZT）
-│   │   ├── composables/  # useApi
+│   │   ├── composables/  # useApi / useLiveReload
 │   │   ├── types/        # 公共类型（snake_case）
 │   │   └── utils/        # 纯展示函数
 │   ├── tests/            #（vitest 规划中）
@@ -239,7 +239,8 @@ cngokzapi/
 ```
 
 后端已落地模块（2026-10-17）：`sources/`（外部数据源）、`modules/` 下
-`maps` / `servers` / `players` / `stats` / `scoring` / `sync` / `ingest`（上报接收端，详见 §9）；
+`maps` / `servers` / `players` / `stats` / `scoring` / `sync` / `ingest`（上报接收端，详见 §9）
+/ `stream`（SSE 实时推送）；
 `docs/data-sources.md`、`scripts/fake-plugin.mjs` 仍为规划项。
 运维小工具：`backend/src/bin/ingest-key.rs`（服务器组与上报 key 管理）。
 
@@ -298,6 +299,8 @@ JSON 一律 snake_case，与前后端类型一一对应。
 ## 6. API 规范
 
 - 前缀：`/api/v1`，JSON，UTF-8。已落地（2026-10-17）：
+  - 实时推送：`GET /api/v1/stream?topics=records,map:44,player:<steamid64>,bans,leaderboard,stats`
+    （SSE；`topics` 为空订阅全部；事件体 `{ topic, kind, id?, at }`，15s 心跳）
   - 健康：`GET /api/v1/health`、`GET /api/v1/health/ready`
   - 榜单：`GET /api/v1/leaderboard?mode=KZT`（本站名次，按本站汇总分；前端本地搜索/筛选/排序）
   - 记录：`GET /api/v1/records`（三模式各最新 20 条）
@@ -462,6 +465,10 @@ JSON 一律 snake_case，与前后端类型一一对应。
     无效并删除其榜单汇总（解禁/上游恢复后由 `record_updates` 自动重新计入）；
   - `leaderboard`：由每日改为**每 10 分钟**刷新，前 N 名玩家补全改为 6 小时内不重复入队；
   - 游标持久化在 `sync_state` 表，重启不丢；`upsert_record_state` 兼容 KZTimer/gokz 双来源自然键去重。
+- **浏览器推送（SSE，2026-10-19 落地）**：新增 `GET /api/v1/stream`，写入端（ingest / recent /
+  record_updates / bans / leaderboard）发布到进程内 `EventBus`；前端 `useLiveReload` 按主题
+  （`records` / `map:{id}` / `player:{steamid64}` / `bans` / `leaderboard` / `stats`）400ms 防抖刷新。
+  单实例用 tokio broadcast，多实例时可换 Redis Pub/Sub，调用方无需改动。
 - 所有回源经 `sync_jobs` 队列：同一 key 去重、指数退避、外部总并发上限
   （默认单源 ≤ 2），失败不阻塞请求（先返回骨架/缓存，同步完成后再刷新）。
 
@@ -678,6 +685,11 @@ POST /api/v2.0/records                 X-ApiKey: <key>
   `bans` 改 `updated_since` 增量（**60s**）并**级联失效**封禁玩家成绩；`leaderboard` 24h→**10 分钟**；
   新增 `sync_state` 游标表与 `upsert_record_state`（双来源自然键去重）。
   当前真实延迟：新成绩 10–30s、软删除/封禁 30–60s、排行榜 ≈10 分钟（自建插件接入后可到 <1s）。
+- 当前：SSE 页面秒级自动刷新（2026年10月19日，`develop`）：新增 `EventBus`（tokio broadcast）与
+  `GET /api/v1/stream`；ingest / recent / record_updates / bans / leaderboard 写入后发布事件，
+  前端新增 `useLiveReload`，首页/最新记录/排行榜/地图详情/个人资料/封禁名单订阅对应主题并防抖刷新；
+  Playwright 实测地图页、记录页、个人资料页在事件到达后自动重新拉取（无页面跳转），
+  单实例内存广播，多实例可换 Redis Pub/Sub。
 - 下一步（按序）：
   1. ~~旧阶段（vanilla 原型 + 单文件后端）~~ ✅ 已归档/替换
   2. ~~数据接入落地（§9）：`sources/` + `sync_jobs` + `scoring` + `0002/0003` + `ingest`；

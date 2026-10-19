@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { NAlert, NAvatar, NCard, NEmpty, NSpin, NTag } from 'naive-ui'
 import { RouterLink } from 'vue-router'
 import { useApi } from '@/composables/useApi'
+import { useLiveReload } from '@/composables/useLive'
 import { MODES } from '@/types/common'
 import type { Mode } from '@/types/common'
 import { avatarUrl } from '@/utils/avatar'
@@ -11,7 +12,10 @@ import { mapImage } from '@/utils/mapImage'
 import { fetchRecords } from './api'
 import type { RecordEntry } from './types'
 
-const { data, loading, error } = useApi(fetchRecords)
+const { data, loading, error, reload } = useApi(fetchRecords)
+
+// 新记录/失效记录到达时自动刷新
+useLiveReload(() => ['records'], () => void reload())
 
 function rowsFor(mode: Mode): RecordEntry[] {
   return (data.value ?? []).filter((r) => r.mode === mode).slice(0, 20)

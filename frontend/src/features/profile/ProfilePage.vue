@@ -3,6 +3,7 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import { NAlert, NAvatar, NButton, NInput, NPagination, NSpin, NTag } from 'naive-ui'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useApi } from '@/composables/useApi'
+import { useLiveReload } from '@/composables/useLive'
 import { MODES } from '@/types/common'
 import type { Mode } from '@/types/common'
 import { avatarUrl } from '@/utils/avatar'
@@ -213,6 +214,15 @@ watch(
     void loadMaps()
   },
   { immediate: true },
+)
+
+// 该玩家的新成绩/封禁失效时，刷新资料与地图进度
+useLiveReload(
+  () => (steamId.value ? [`player:${steamId.value}`] : []),
+  () => {
+    void reload()
+    void loadMaps()
+  },
 )
 
 /** 难度色：用全局 token，未评级用中性底色。 */

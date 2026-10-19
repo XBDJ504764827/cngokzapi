@@ -4,6 +4,7 @@
 pub mod app;
 pub mod config;
 pub mod errors;
+pub mod events;
 pub mod infrastructure;
 pub mod middleware;
 pub mod modules;

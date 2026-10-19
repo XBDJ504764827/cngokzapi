@@ -140,13 +140,14 @@ async fn run_one(state: &AppState, id: i64, kind: &str, key: &str, attempts: i32
 async fn execute(state: &AppState, kind: &str, key: &str) -> Result<usize, jobs::JobError> {
     let pool = &state.db;
     let src = &state.source;
+    let events = &state.events;
     match kind {
         super::KIND_MAPS => jobs::run_maps(pool, src).await,
-        super::KIND_LEADERBOARD => jobs::run_leaderboard(pool, src, key, 200).await,
-        super::KIND_RECENT => jobs::run_recent(pool, src).await,
-        super::KIND_RECORD_UPDATES => jobs::run_record_updates(pool, src).await,
+        super::KIND_LEADERBOARD => jobs::run_leaderboard(pool, src, key, 200, events).await,
+        super::KIND_RECENT => jobs::run_recent(pool, src, events).await,
+        super::KIND_RECORD_UPDATES => jobs::run_record_updates(pool, src, events).await,
         super::KIND_SERVERS => jobs::run_servers(pool, src, &state.config.steam_api_key).await,
-        super::KIND_BANS => jobs::run_bans(pool, src).await,
+        super::KIND_BANS => jobs::run_bans(pool, src, events).await,
         super::KIND_MAP => match key.split_once('|') {
             Some((map_name, mode)) => jobs::run_map(pool, src, map_name, mode).await,
             None => Err(jobs::JobError::Db(sqlx::Error::Protocol(format!(

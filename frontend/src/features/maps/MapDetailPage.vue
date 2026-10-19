@@ -6,6 +6,7 @@ import { RouterLink, useRoute } from 'vue-router'
 import PlayerCell from '@/components/PlayerCell.vue'
 import RankBadge from '@/components/RankBadge.vue'
 import { useApi } from '@/composables/useApi'
+import { useLiveReload } from '@/composables/useLive'
 import { MODES } from '@/types/common'
 import type { Mode } from '@/types/common'
 import { formatDateTimeTiny, formatFilesize, formatTier } from '@/utils/format'
@@ -32,6 +33,9 @@ watch(mapId, () => (retries = 0))
 onUnmounted(() => {
   if (timer) clearTimeout(timer)
 })
+
+// 该地图有新成绩/失效时自动刷新
+useLiveReload(() => [`map:${mapId.value}`], () => void reload())
 
 const map = computed(() => data.value?.map ?? null)
 const authors = computed(() =>

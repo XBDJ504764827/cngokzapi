@@ -3,11 +3,15 @@ import { computed } from 'vue'
 import { NAlert, NCard, NGrid, NGi, NStatistic } from 'naive-ui'
 import { RouterLink } from 'vue-router'
 import { useApi } from '@/composables/useApi'
+import { useLiveReload } from '@/composables/useLive'
 import { formatNumber } from '@/utils/format'
 import { fetchStats } from './api'
 import { announcements } from './announcements'
 
-const { data, error } = useApi(fetchStats)
+const { data, error, reload } = useApi(fetchStats)
+
+// 统计变化较慢，事件到达后 3s 防抖刷新
+useLiveReload(() => ['stats'], () => void reload(), 3000)
 
 // 每张统计卡配一个线性图标（细描边，克制不抢视线）
 const ICON_PLAYERS =
