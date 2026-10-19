@@ -196,6 +196,8 @@ pub struct TopRecordRow {
     pub wr_time: Option<f64>,
     pub created_on: String,
     #[serde(default)]
+    pub updated_on: Option<String>,
+    #[serde(default)]
     pub is_valid: Option<bool>,
 }
 
@@ -289,6 +291,8 @@ pub struct BanRow {
     pub server: Option<ServerRef>,
     pub player: PlayerRef,
     pub created_at: String,
+    #[serde(default)]
+    pub updated_at: Option<String>,
 }
 
 /// GOKZ.TOP 客户端（薄封装，复用 `SourceClient` 的限速与重试）。
@@ -441,6 +445,47 @@ impl GokzTop<'_> {
             .get_json(&url(
                 "/bans",
                 &[
+                    ("limit", limit.to_string()),
+                    ("offset", offset.to_string()),
+                    ("include_count", "true".to_string()),
+                ],
+            ))
+            .await
+    }
+
+    /// 增量成绩：拉 `updated_since` 之后被修改/软删除的记录（含 `is_valid` 变化）。
+    pub async fn records_updated_since(
+        &self,
+        since: &str,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Page<TopRecordRow>, SourceError> {
+        self.0
+            .get_json(&url(
+                "/records",
+                &[
+                    ("updated_since", since.to_string()),
+                    ("limit", limit.to_string()),
+                    ("offset", offset.to_string()),
+                    // 需要看到被封禁/失效的记录，才能把本地状态同步为 is_valid=false
+                    ("exclude_cheaters", "false".to_string()),
+                ],
+            ))
+            .await
+    }
+
+    /// 增量封禁：拉 `updated_since` 之后新增/修改的封禁。
+    pub async fn bans_updated_since(
+        &self,
+        since: &str,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Page<BanRow>, SourceError> {
+        self.0
+            .get_json(&url(
+                "/bans",
+                &[
+                    ("updated_since", since.to_string()),
                     ("limit", limit.to_string()),
                     ("offset", offset.to_string()),
                     ("include_count", "true".to_string()),

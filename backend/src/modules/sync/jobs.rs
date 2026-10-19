@@ -180,26 +180,36 @@ pub async fn run_leaderboard(
             break;
         }
     }
-    // 榜单前 N 名逐个补齐档案（按需回源队列，幂等）
+    // 榜单前 N 名补全档案与 PB（6 小时内不重复入队，避免 10 分钟刷新时反复拉取）
     for steamid64 in enrich {
-        super::queue::enqueue(pool, super::KIND_PLAYER, &steamid64).await?;
+        super::queue::enqueue_if_stale(pool, super::KIND_PLAYER, &steamid64, 6 * 3600).await?;
     }
     Ok(n)
 }
 
-// ------------------------------ 最新记录（KZTimer 实时广播源） ------------------------------
+// ------------------------------ 增量同步：KZTimer 实时广播源 ------------------------------
 
 /// KZTimer 拉取条数（接口不支持按模式过滤，拉回后本地筛选）。
-const RECENT_FETCH: i64 = 300;
+const RECENT_FETCH: i64 = 1000;
+/// KZTimer recent 的 record id 游标（只处理 id 增大的新记录）。
+const CURSOR_KZTIMER_RECENT: &str = "kztimer_recent_id";
 
-pub async fn run_recent(pool: &PgPool, src: &SourceClient, mode: &str) -> Result<usize, JobError> {
+/// 拉取最新成绩：单任务处理三模式，按 record id 游标去重，只重算新增记录涉及的玩家。
+pub async fn run_recent(pool: &PgPool, src: &SourceClient) -> Result<usize, JobError> {
     let rows = Kztimer(src).recent_records(RECENT_FETCH).await?;
+    let cursor = repository::get_sync_state(pool, CURSOR_KZTIMER_RECENT)
+        .await?
+        .and_then(|v| v.parse::<i64>().ok())
+        .unwrap_or(0);
+    let max_id = rows.iter().map(|r| r.id).max().unwrap_or(cursor);
+
     let mut n = 0;
-    for r in &rows {
+    let mut touched: Vec<(i64, String)> = Vec::new();
+    for r in rows.iter().filter(|r| r.id > cursor) {
         // 接口不支持按模式过滤，这里本地筛选（PROJECT §9.2）
-        if kztimer::mode_name(&r.mode) != Some(mode) {
+        let Some(mode) = kztimer::mode_name(&r.mode) else {
             continue;
-        }
+        };
         let Some(steam_id) = r.steamid64.parse::<i64>().ok() else {
             continue;
         };
@@ -212,7 +222,7 @@ pub async fn run_recent(pool: &PgPool, src: &SourceClient, mode: &str) -> Result
             None => repository::ensure_map(pool, r.map_id.unwrap_or(0), map_name, 0).await?,
         };
         let external_id = format!("kztimer:{}", r.id);
-        repository::upsert_record(
+        let inserted = repository::upsert_record(
             pool,
             &RecordUpsert {
                 external_id: Some(&external_id),
@@ -234,9 +244,132 @@ pub async fn run_recent(pool: &PgPool, src: &SourceClient, mode: &str) -> Result
             },
         )
         .await?;
-        n += 1;
+        if inserted {
+            touched.push((steam_id, mode.to_string()));
+            n += 1;
+        }
     }
+    if max_id > cursor {
+        repository::set_sync_state(pool, CURSOR_KZTIMER_RECENT, &max_id.to_string()).await?;
+    }
+    refresh_local_points(pool, &touched).await?;
     Ok(n)
+}
+
+// ------------------------------ 增量同步：gokz.top 记录修改 / 软删除 ------------------------------
+
+const RECORD_UPDATE_PAGE: i64 = 10_000;
+const RECORD_UPDATE_MAX: i64 = 50_000;
+const CURSOR_GOKZ_RECORDS: &str = "gokz_records_updated";
+
+/// 拉取 `updated_since` 之后被修改 / 软删除的记录：
+/// - 新成绩：正常落库；
+/// - `is_valid=false`：把本地记录标为无效（地图榜 / 最近成绩立即消失）；
+/// - 改分：更新 `points` 并重算受影响玩家。
+pub async fn run_record_updates(pool: &PgPool, src: &SourceClient) -> Result<usize, JobError> {
+    let since = repository::get_sync_state(pool, CURSOR_GOKZ_RECORDS)
+        .await?
+        .unwrap_or_else(|| iso_now_minus(600));
+    let client = GokzTop(src);
+    let since_time = parse_time(&since);
+    let mut cursor = since_time;
+    let mut offset = 0i64;
+    let mut n = 0;
+    let mut touched: Vec<(i64, String)> = Vec::new();
+
+    loop {
+        let page = client
+            .records_updated_since(&since, RECORD_UPDATE_PAGE, offset)
+            .await?;
+        let got = page.data.len() as i64;
+        for r in &page.data {
+            if let Some(u) = r.updated_on.as_deref() {
+                cursor = cursor.max(parse_time(u));
+            }
+            let (Some(map_name), Some(steam_id)) = (
+                r.map_name.as_deref(),
+                r.player.steamid64.parse::<i64>().ok(),
+            ) else {
+                continue;
+            };
+            let map_id = match repository::map_id_by_name(pool, map_name).await? {
+                Some(id) => id,
+                None => {
+                    repository::ensure_map(
+                        pool,
+                        r.map_id.unwrap_or(0),
+                        map_name,
+                        r.map_tier.unwrap_or(0),
+                    )
+                    .await?
+                }
+            };
+            let mode = r.mode.as_deref().unwrap_or("KZT");
+            repository::upsert_player(pool, steam_id, &r.player.display_name).await?;
+            let changed = repository::upsert_record_state(
+                pool,
+                &RecordUpsert {
+                    external_id: Some(&r.uuid),
+                    steam_id,
+                    map_id,
+                    mode,
+                    stage: r.stage,
+                    tickrate: if r.tickrate > 0 { r.tickrate } else { 128 },
+                    teleports: r.teleports,
+                    time_ms: secs_to_ms(r.time),
+                    points: r.points,
+                    source: "gokz_top",
+                    origin_server_id: r.server_id,
+                    server_name: r.server_name.as_deref(),
+                    server_group: None,
+                    wr_time_ms: r.wr_time.map(secs_to_ms),
+                    is_valid: r.is_valid.unwrap_or(true),
+                    created_at: parse_time(&r.created_on),
+                },
+            )
+            .await?;
+            if changed {
+                touched.push((steam_id, mode.to_string()));
+                n += 1;
+            }
+        }
+        offset += got;
+        if got < RECORD_UPDATE_PAGE || offset >= RECORD_UPDATE_MAX {
+            break;
+        }
+    }
+
+    // 有更新时回退 60s 重叠，无更新时推进到最近窗口，避免反复扫同一段
+    let next = if cursor > since_time {
+        iso_of(cursor - chrono::Duration::seconds(60))
+    } else {
+        iso_now_minus(300)
+    };
+    repository::set_sync_state(pool, CURSOR_GOKZ_RECORDS, &next).await?;
+    refresh_local_points(pool, &touched).await?;
+    Ok(n)
+}
+
+/// 把时间格式化为 UTC RFC3339（秒级，`Z` 结尾），与 gokz.top 游标一致。
+fn iso_of(t: DateTime<Utc>) -> String {
+    t.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+}
+
+fn iso_now_minus(secs: i64) -> String {
+    iso_of(Utc::now() - chrono::Duration::seconds(secs))
+}
+
+/// 批量重算受影响玩家的本站汇总分（去重后逐个计算）。
+async fn refresh_local_points(pool: &PgPool, touched: &[(i64, String)]) -> Result<(), JobError> {
+    let mut seen = std::collections::HashSet::new();
+    for (steam_id, mode) in touched {
+        if !seen.insert((*steam_id, mode.clone())) {
+            continue;
+        }
+        let best = best_points(pool, *steam_id, mode).await?;
+        repository::update_local_points(pool, *steam_id, mode, scoring::total_points(best)).await?;
+    }
+    Ok(())
 }
 
 // ------------------------------ 单张地图（按需整图同步） ------------------------------
@@ -531,46 +664,81 @@ pub async fn run_servers(
     Ok(n)
 }
 
-pub async fn run_bans(pool: &PgPool, src: &SourceClient, limit: i64) -> Result<usize, JobError> {
-    let page = GokzTop(src).bans(limit, 0).await?;
+const BAN_UPDATE_PAGE: i64 = 10_000;
+const BAN_UPDATE_MAX: i64 = 50_000;
+const CURSOR_GOKZ_BANS: &str = "gokz_bans_updated";
+
+/// 增量拉取封禁，并在封禁发生时级联失效该玩家的成绩与榜单。
+/// gokz.top 的封禁类型均为作弊类（hack/macro/ban_evasion/exploiting/boosting）。
+pub async fn run_bans(pool: &PgPool, src: &SourceClient) -> Result<usize, JobError> {
+    let since = repository::get_sync_state(pool, CURSOR_GOKZ_BANS)
+        .await?
+        .unwrap_or_else(|| iso_now_minus(3600));
+    let client = GokzTop(src);
+    let since_time = parse_time(&since);
+    let mut cursor = since_time;
+    let mut offset = 0i64;
     let mut n = 0;
-    for b in &page.data {
-        let Some(steam_id) = b.player.steamid64.parse::<i64>().ok() else {
-            continue;
-        };
-        repository::upsert_player(pool, steam_id, &b.player.display_name).await?;
-        let reason = [
-            b.ban_type.clone().unwrap_or_default(),
-            b.notes.clone().unwrap_or_default(),
-        ]
-        .into_iter()
-        .filter(|s| !s.is_empty())
-        .collect::<Vec<_>>()
-        .join(" · ");
-        let server = b
-            .server
-            .as_ref()
-            .and_then(|s| s.name.clone())
-            .unwrap_or_default();
-        repository::upsert_ban(
-            pool,
-            &BanUpsert {
-                external_id: &b.uuid,
-                steam_id,
-                name: &b.player.display_name,
-                avatar: "",
-                reason: &reason,
-                server: &server,
-                detail: b.stats.as_deref().unwrap_or_default(),
-                banned_at: parse_time(&b.created_at),
-                ban_type: b.ban_type.as_deref(),
-                expires_at: b.expires_at.as_deref().map(parse_time),
-                source: "gokz_top",
-            },
-        )
-        .await?;
-        n += 1;
+
+    loop {
+        let page = client
+            .bans_updated_since(&since, BAN_UPDATE_PAGE, offset)
+            .await?;
+        let got = page.data.len() as i64;
+        for b in &page.data {
+            if let Some(u) = b.updated_at.as_deref() {
+                cursor = cursor.max(parse_time(u));
+            }
+            let Some(steam_id) = b.player.steamid64.parse::<i64>().ok() else {
+                continue;
+            };
+            repository::upsert_player(pool, steam_id, &b.player.display_name).await?;
+            let reason = [
+                b.ban_type.clone().unwrap_or_default(),
+                b.notes.clone().unwrap_or_default(),
+            ]
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join(" · ");
+            let server = b
+                .server
+                .as_ref()
+                .and_then(|s| s.name.clone())
+                .unwrap_or_default();
+            repository::upsert_ban(
+                pool,
+                &BanUpsert {
+                    external_id: &b.uuid,
+                    steam_id,
+                    name: &b.player.display_name,
+                    avatar: "",
+                    reason: &reason,
+                    server: &server,
+                    detail: b.stats.as_deref().unwrap_or_default(),
+                    banned_at: parse_time(&b.created_at),
+                    ban_type: b.ban_type.as_deref(),
+                    expires_at: b.expires_at.as_deref().map(parse_time),
+                    source: "gokz_top",
+                },
+            )
+            .await?;
+            // 级联：作弊封禁 → 成绩失效 + 移出排行榜（下一次解禁/上游恢复时自动重新计入）
+            repository::invalidate_player_records(pool, steam_id).await?;
+            n += 1;
+        }
+        offset += got;
+        if got < BAN_UPDATE_PAGE || offset >= BAN_UPDATE_MAX {
+            break;
+        }
     }
+
+    let next = if cursor > since_time {
+        iso_of(cursor - chrono::Duration::seconds(60))
+    } else {
+        iso_now_minus(300)
+    };
+    repository::set_sync_state(pool, CURSOR_GOKZ_BANS, &next).await?;
     Ok(n)
 }
 

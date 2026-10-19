@@ -14,6 +14,8 @@ pub mod worker;
 pub const KIND_MAPS: &str = "maps";
 pub const KIND_LEADERBOARD: &str = "leaderboard";
 pub const KIND_RECENT: &str = "recent";
+/// gokz.top 记录修改/软删除增量（`updated_since`）。
+pub const KIND_RECORD_UPDATES: &str = "record_updates";
 pub const KIND_MAP: &str = "map";
 pub const KIND_PLAYER: &str = "player";
 /// 轻量玩家档案（只拉名称/头像/国家，1 次外部请求）。

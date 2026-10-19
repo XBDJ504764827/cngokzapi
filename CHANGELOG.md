@@ -10,6 +10,34 @@
 
 ---
 
+## 2026年10月19日 17时47分44秒 实时增量同步 Phase 1-4：10s 成绩 / 30s 软删除 / 60s 封禁级联 / 10 分钟榜单
+
+- 背景：数据虽已真实，但更新靠定时全量轮询（成绩 60s、封禁 1h、榜单 24h，且不处理删除/失效），
+  需要在不依赖自建插件的前提下把延迟压到最短。
+- 变更内容：
+  - 新增 `sync_state` 游标表（迁移 `0009`）：`kztimer_recent_id` / `gokz_records_updated` /
+    `gokz_bans_updated`，游标持久化、重启不丢。
+  - `recent`（KZTimer）：60s → **10s**，改为单任务处理三模式，按 record id 游标只处理新记录，
+    并对新增记录涉及的玩家重算本站汇总分（`RECENT_FETCH` 300→1000）。
+  - 新增 `record_updates` 任务（gokz.top `/records?updated_since=&exclude_cheaters=false`，**30s**）：
+    捕获新成绩、改分与**软删除（`is_valid=false`）**；新增 `upsert_record_state`，命中已有行时更新
+    `is_valid/points`，兼容 KZTimer/gokz 双来源自然键去重。
+  - `bans` 改为 `updated_since` 增量（**60s**）并**级联**：作弊封禁到达后把该玩家成绩标为无效、
+    删除其 `player_scores`；迁移 `0010` 对已有封禁补一次（20 名玩家 / 3984 条成绩）。
+  - `leaderboard`：24h → **10 分钟**；前 N 名玩家补全改为 6 小时内不重复入队（`enqueue_if_stale`）。
+  - worker 新增 `RECORD_UPDATE_EVERY`，队列优先级仍为全局任务优先。
+- 涉及文件：`backend/migrations/{0009_sync_state,0010_ban_cascade}.sql`、
+  `backend/src/modules/sync/{mod,queue,worker,jobs,repository}.rs`、
+  `backend/src/sources/gokz_top.rs`、`PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：新增 `sync_state` 表；无公开 API 变化；上游新增 `/records?updated_since=`、
+  `/bans?updated_since=` 调用。
+- 测试与结果（北京时间）：`cargo fmt`/`build`/`clippy -D warnings`、`cargo test`（30 passed）通过；
+  迁移已应用并重启后端；实测三个游标持续推进，`record_updates` 每 30s 处理 3–12 条无报错，
+  `kztimer_recent_id` 已推进到 `27818608`；封禁级联后「封禁玩家有效成绩 / 榜单汇总」均为 0；
+  新成绩已能在 10–30s 内出现在 `/api/v1/records` 与地图榜。
+- 当前真实延迟：新成绩 10–30s、软删除/封禁 30–60s、排行榜 ≈10 分钟、服务器 5 分钟；
+  自建插件事件直推接入后可到 <1s（Phase 5+，本次未做）。
+
 ## 2026年10月19日 16时53分13秒 真实数据回填完成 + 排行榜/最新记录接入真实头像
 
 - 背景：`player_profile` 回填已跑完，同时发现排行榜与最新记录前端虽然拿到了 `avatar` 字段，

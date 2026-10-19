@@ -5,7 +5,8 @@ use sqlx::PgPool;
 /// 最大尝试次数，超过则标记为 `dead`（再次 `enqueue` 会复活）。
 const MAX_ATTEMPTS: i32 = 8;
 
-/// 入队（幂等）：同 `(kind, key)` 已存在则重置为 `pending`。
+/// 入队（幂等）：同 `(kind, key)` 已存在则重置为 `pending`；
+/// 正在 `running` 的任务不会被重置，避免同一任务并发重复执行。
 pub async fn enqueue(pool: &PgPool, kind: &str, key: &str) -> Result<(), sqlx::Error> {
     sqlx::query(
         r#"INSERT INTO sync_jobs (kind, key, status, attempts, next_run_at, updated_at)
@@ -15,12 +16,37 @@ pub async fn enqueue(pool: &PgPool, kind: &str, key: &str) -> Result<(), sqlx::E
                attempts   = 0,
                next_run_at = now(),
                last_error = NULL,
-               updated_at = now()"#,
+               updated_at = now()
+           WHERE sync_jobs.status <> 'running'"#,
     )
     .bind(kind)
     .bind(key)
     .execute(pool)
     .await?;
+    Ok(())
+}
+
+/// 仅在任务不存在或已超过 `stale_secs` 未更新时入队。
+/// 用于高频任务（如 10 分钟一次的榜单）触发昂贵的玩家补全，避免重复拉取。
+pub async fn enqueue_if_stale(
+    pool: &PgPool,
+    kind: &str,
+    key: &str,
+    stale_secs: i64,
+) -> Result<(), sqlx::Error> {
+    let fresh: Option<(String,)> = sqlx::query_as(
+        r#"SELECT status FROM sync_jobs
+           WHERE kind = $1 AND key = $2
+             AND updated_at > now() - make_interval(secs => $3)"#,
+    )
+    .bind(kind)
+    .bind(key)
+    .bind(stale_secs as f64)
+    .fetch_optional(pool)
+    .await?;
+    if fresh.is_none() {
+        enqueue(pool, kind, key).await?;
+    }
     Ok(())
 }
 

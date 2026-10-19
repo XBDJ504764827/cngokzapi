@@ -16,11 +16,12 @@ const MAX_INFLIGHT: usize = 4;
 /// 轮询间隔。
 const TICK: Duration = Duration::from_secs(2);
 
-/// 定时任务周期（秒）。最新记录来自 KZTimer 广播源，60s 拉一次以保证接近实时。
-const RECENT_EVERY: u64 = 60;
+/// 定时任务周期（秒）：增量任务高频、全量任务低频。
+const RECENT_EVERY: u64 = 10;
+const RECORD_UPDATE_EVERY: u64 = 30;
 const SERVERS_EVERY: u64 = 300;
-const BANS_EVERY: u64 = 3600;
-const LEADERBOARD_EVERY: u64 = 86_400;
+const BANS_EVERY: u64 = 60;
+const LEADERBOARD_EVERY: u64 = 600;
 const MAPS_EVERY: u64 = 86_400;
 
 /// 入队：任意任务。
@@ -49,6 +50,7 @@ pub async fn run(state: AppState) {
     }
 
     let mut last_recent = Instant::now() - Duration::from_secs(RECENT_EVERY);
+    let mut last_record_updates = Instant::now() - Duration::from_secs(RECORD_UPDATE_EVERY);
     let mut last_servers = Instant::now() - Duration::from_secs(SERVERS_EVERY);
     let mut last_bans = Instant::now() - Duration::from_secs(BANS_EVERY);
     let mut last_leaderboard = Instant::now() - Duration::from_secs(LEADERBOARD_EVERY);
@@ -76,10 +78,12 @@ pub async fn run(state: AppState) {
             last_bans = Instant::now();
         }
         if last_recent.elapsed().as_secs() >= RECENT_EVERY {
-            for mode in jobs::MODES {
-                enqueue(&state, super::KIND_RECENT, mode).await;
-            }
+            enqueue(&state, super::KIND_RECENT, "all").await;
             last_recent = Instant::now();
+        }
+        if last_record_updates.elapsed().as_secs() >= RECORD_UPDATE_EVERY {
+            enqueue(&state, super::KIND_RECORD_UPDATES, "all").await;
+            last_record_updates = Instant::now();
         }
 
         // 消费队列：受 inflight 信号量限制，任务并发执行但共享上游限速
@@ -139,9 +143,10 @@ async fn execute(state: &AppState, kind: &str, key: &str) -> Result<usize, jobs:
     match kind {
         super::KIND_MAPS => jobs::run_maps(pool, src).await,
         super::KIND_LEADERBOARD => jobs::run_leaderboard(pool, src, key, 200).await,
-        super::KIND_RECENT => jobs::run_recent(pool, src, key).await,
+        super::KIND_RECENT => jobs::run_recent(pool, src).await,
+        super::KIND_RECORD_UPDATES => jobs::run_record_updates(pool, src).await,
         super::KIND_SERVERS => jobs::run_servers(pool, src, &state.config.steam_api_key).await,
-        super::KIND_BANS => jobs::run_bans(pool, src, 500).await,
+        super::KIND_BANS => jobs::run_bans(pool, src).await,
         super::KIND_MAP => match key.split_once('|') {
             Some((map_name, mode)) => jobs::run_map(pool, src, map_name, mode).await,
             None => Err(jobs::JobError::Db(sqlx::Error::Protocol(format!(
@@ -180,9 +185,7 @@ async fn seed(state: &AppState) -> Result<(), sqlx::Error> {
         }
     }
     if table_count(&state.db, "records").await? == 0 {
-        for mode in jobs::MODES {
-            enqueue(state, super::KIND_RECENT, mode).await;
-        }
+        enqueue(state, super::KIND_RECENT, "all").await;
     }
     if table_count(&state.db, "servers").await? == 0 {
         enqueue(state, super::KIND_SERVERS, "all").await;

@@ -351,6 +351,89 @@ pub async fn upsert_record(pool: &PgPool, r: &RecordUpsert<'_>) -> Result<bool, 
     Ok(res.rows_affected() > 0)
 }
 
+/// 带状态更新的成绩 upsert（用于 gokz.top `updated_since` 增量）：
+/// 已存在的记录会更新 `is_valid` / `points` / `updated_at`，以支持上游软删除与改分。
+/// 返回是否有行被插入或更新。
+pub async fn upsert_record_state(pool: &PgPool, r: &RecordUpsert<'_>) -> Result<bool, sqlx::Error> {
+    let Some(external_id) = r.external_id else {
+        return upsert_record(pool, r).await;
+    };
+    // 先按 external_id 或自然键定位已有行：同一成绩可能已由另一来源（KZTimer / gokz）写入，
+    // 直接 INSERT 会撞 `uq_records_natural`。命中则只更新状态，未命中才插入。
+    let existing: Option<(i64,)> = sqlx::query_as(
+        r#"SELECT id FROM records
+           WHERE external_id = $1
+              OR (player_steam_id = $2 AND map_id = $3 AND mode = $4 AND stage = $5
+                  AND tickrate = $6 AND teleports = $7 AND time_ms = $8 AND created_at = $9)
+           LIMIT 1"#,
+    )
+    .bind(external_id)
+    .bind(r.steam_id)
+    .bind(r.map_id)
+    .bind(r.mode)
+    .bind(r.stage)
+    .bind(r.tickrate)
+    .bind(r.teleports)
+    .bind(r.time_ms)
+    .bind(r.created_at)
+    .fetch_optional(pool)
+    .await?;
+
+    if let Some((id,)) = existing {
+        sqlx::query(
+            "UPDATE records SET is_valid = $2, points = $3, updated_at = now() WHERE id = $1",
+        )
+        .bind(id)
+        .bind(r.is_valid)
+        .bind(r.points)
+        .execute(pool)
+        .await?;
+        return Ok(true);
+    }
+
+    upsert_record(pool, r).await
+}
+
+/// 读取增量游标（不存在时返回 None）。
+pub async fn get_sync_state(pool: &PgPool, key: &str) -> Result<Option<String>, sqlx::Error> {
+    let row: Option<(String,)> = sqlx::query_as("SELECT value FROM sync_state WHERE key = $1")
+        .bind(key)
+        .fetch_optional(pool)
+        .await?;
+    Ok(row.map(|r| r.0))
+}
+
+/// 写入增量游标。
+pub async fn set_sync_state(pool: &PgPool, key: &str, value: &str) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"INSERT INTO sync_state (key, value, updated_at) VALUES ($1, $2, now())
+           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()"#,
+    )
+    .bind(key)
+    .bind(value)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// 封禁级联：把该玩家所有成绩标为无效，并移除榜单汇总（不再出现在排行榜/地图榜）。
+/// 返回被失效的成绩条数。
+pub async fn invalidate_player_records(pool: &PgPool, steam_id: i64) -> Result<u64, sqlx::Error> {
+    let records = sqlx::query(
+        "UPDATE records SET is_valid = FALSE, updated_at = now() \
+         WHERE player_steam_id = $1 AND is_valid",
+    )
+    .bind(steam_id)
+    .execute(pool)
+    .await?
+    .rows_affected();
+    sqlx::query("DELETE FROM player_scores WHERE player_steam_id = $1")
+        .bind(steam_id)
+        .execute(pool)
+        .await?;
+    Ok(records)
+}
+
 /// 榜单汇总 upsert（不覆盖 `points_local`，由计分单独写入）。
 pub async fn upsert_score(pool: &PgPool, s: &ScoreUpsert<'_>) -> Result<(), sqlx::Error> {
     sqlx::query(

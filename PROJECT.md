@@ -267,6 +267,10 @@ JSON 一律 snake_case，与前后端类型一一对应。
   让同步按 PB 重拉以回填「全部已完成地图」。
 - `0008_player_profile_backfill.sql`（2026-10-19）：无表结构变更，为所有缺少头像/国籍的玩家
   入队 `player_profile` 轻量任务（每人 1 次 `GET /players/{steamid64}`）。
+- `0009_sync_state.sql`（2026-10-19）：新增 `sync_state(key PK, value, updated_at)` 持久化增量游标
+  （`kztimer_recent_id` / `gokz_records_updated` / `gokz_bans_updated`）。
+- `0010_ban_cascade.sql`（2026-10-19）：把已有封禁玩家的成绩置为 `is_valid=false` 并删除其
+  `player_scores`（新封禁由 `run_bans` 实时级联）。
 - `records` 增列：`source`（`plugin`/`gokz_top`/`kztimer`）、`external_id`（UNIQUE）、
   `stage`、`tickrate`、`teleports`、`points_local`（本站口径，可空）、
   `origin_server_id`、`server_name`、`server_group`、`wr_time_ms`、`is_valid`、`updated_at`；
@@ -385,11 +389,11 @@ JSON 一律 snake_case，与前后端类型一一对应。
 
 | 用途 | 主数据源 | 说明 |
 |---|---|---|
-| 最新成绩（实时） | KZTimer `/records/top/recent` | 官方公开广播式接口，60s 轮询增量，`source='kztimer'` |
+| 最新成绩（实时） | KZTimer `/records/top/recent` | 官方公开广播式接口，**10s 轮询 + record id 游标**，`source='kztimer'` |
 | 地图 / 个人成绩（按需） | gokz.top（缓存）+ KZTimer | 地图详情、个人记录，优先本地缓存 |
 | 地图元信息（tier/bonus/作者） | gokz.top（启动全量 + 每日刷新，落库缓存） | KZTimer `/maps` 只有单一 `difficulty`，无 bonus/作者 |
-| 排行榜聚合 | gokz.top（每日刷新，落库缓存） | KZTimer `player_ranks` 的 KZT 恒 500，不可用 |
-| 封禁 | gokz.top（每小时刷新，落库缓存） | KZTimer `/bans` 亦可用 |
+| 排行榜聚合 | gokz.top（**每 10 分钟刷新**，落库缓存） | KZTimer `player_ranks` 的 KZT 恒 500，不可用 |
+| 封禁 | gokz.top（**每 60s `updated_since` 增量 + 级联失效**，落库缓存） | KZTimer `/bans` 亦可用 |
 | 服务器（实时） | ① 本站插件上报（优先）② Steam Web API | 见 §9.11；只展示 KZ 模式 CS 服 |
 | 地图作者显示名 | `kzgo.eu/api/*` | 公开只读；字段可能含 null |
 
@@ -450,7 +454,14 @@ JSON 一律 snake_case，与前后端类型一一对应。
   之后本地即可实时排名；缓存 TTL 默认 7 天并做增量。
 - **榜单维度按页**：用户翻到第 N 页才拉上游第 N 页；另用上游 WR 榜
   （每模式约 100 条）作种子，避免冷启动榜单空白。
-- **增量**：定时按 `created_since` 游标拉 `recent`，量很小。
+- **增量（2026-10-19 落地，Phase 1-4）**：
+  - `recent`（KZTimer）：**10s** 轮询，按 record id 游标只处理新记录，并重算涉及玩家的本站汇总分；
+  - `record_updates`（gokz.top `/records?updated_since=`）：**30s** 增量，捕获新成绩、改分与
+    **软删除（`is_valid=false`）**，命中已有行则更新状态；封禁/失效成绩会立即从地图榜与个人记录消失；
+  - `bans`（gokz.top `/bans?updated_since=`）：**60s** 增量；作弊封禁到达后**级联**把该玩家成绩标为
+    无效并删除其榜单汇总（解禁/上游恢复后由 `record_updates` 自动重新计入）；
+  - `leaderboard`：由每日改为**每 10 分钟**刷新，前 N 名玩家补全改为 6 小时内不重复入队；
+  - 游标持久化在 `sync_state` 表，重启不丢；`upsert_record_state` 兼容 KZTimer/gokz 双来源自然键去重。
 - 所有回源经 `sync_jobs` 队列：同一 key 去重、指数退避、外部总并发上限
   （默认单源 ≤ 2），失败不阻塞请求（先返回骨架/缓存，同步完成后再刷新）。
 
@@ -524,7 +535,8 @@ POST /api/v2.0/records                 X-ApiKey: <key>
 
 1. GlobalAPI 客户端未来是否支持自定义 URL（当前不支持）→ 决定"兼容上报"通路的可行性。
 2. 是否需要"仅本站服务器成绩"与"全球成绩"两套榜单可切换（`source` 字段已预留）。
-3. 上游封禁（`/v1/bans`）是否跟随清榜（策略问题，不阻塞实现）。
+3. ~~上游封禁（`/v1/bans`）是否跟随清榜~~ ✅ 已定稿（2026-10-19）：跟随清榜——封禁级联失效其成绩
+   并删除榜单汇总（见 §9.5），解禁后由 `record_updates` 自动恢复。
 
 ### 9.11 服务器来源（2026-10-18 落地）
 
@@ -661,6 +673,11 @@ POST /api/v2.0/records                 X-ApiKey: <key>
   default slot 忽略 `src` 的头像 bug）；地图制作人 963/1046（剩余 83 张在 gokz.top / kzgo 均无记录）、
   首页公告为运营文案，均非缺失的接口数据。
   其他真实数据：记录 32.6 万条、在线服务器 619 台、封禁 503 条、地图 1046 张。
+- 当前：实时增量同步 Phase 1-4（2026年10月19日，`develop`）：KZTimer recent 60s→**10s** + id 游标；
+  新增 `record_updates` 任务（gokz `/records?updated_since=`，**30s**）支持软删除/改分；
+  `bans` 改 `updated_since` 增量（**60s**）并**级联失效**封禁玩家成绩；`leaderboard` 24h→**10 分钟**；
+  新增 `sync_state` 游标表与 `upsert_record_state`（双来源自然键去重）。
+  当前真实延迟：新成绩 10–30s、软删除/封禁 30–60s、排行榜 ≈10 分钟（自建插件接入后可到 <1s）。
 - 下一步（按序）：
   1. ~~旧阶段（vanilla 原型 + 单文件后端）~~ ✅ 已归档/替换
   2. ~~数据接入落地（§9）：`sources/` + `sync_jobs` + `scoring` + `0002/0003` + `ingest`；
