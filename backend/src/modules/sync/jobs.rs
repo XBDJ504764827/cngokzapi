@@ -437,6 +437,30 @@ async fn upsert_top_records(
     Ok(n)
 }
 
+/// 轻量玩家档案同步：只拉 `/players/{steamid64}`（名称 / 头像 / 国家），
+/// 用于批量回填缺失头像与国旗，避免为每个玩家重跑完整档案。
+pub async fn run_player_profile(
+    pool: &PgPool,
+    src: &SourceClient,
+    steamid64: &str,
+) -> Result<usize, JobError> {
+    let Some(steam_id) = steamid64.parse::<i64>().ok() else {
+        return Err(JobError::Db(sqlx::Error::RowNotFound));
+    };
+    let Some(p) = GokzTop(src).player_profile(steamid64).await? else {
+        return Ok(0);
+    };
+    repository::upsert_player_profile(
+        pool,
+        steam_id,
+        &p.name,
+        p.avatar_url().as_deref(),
+        p.country.as_deref(),
+    )
+    .await?;
+    Ok(1)
+}
+
 /// 取某玩家某模式下每个 (地图, 关卡, 传送口径) 的最佳分数。
 /// GOKZ 的 TP / PRO 是两张独立榜单、各自给分，故分组要带 `teleports > 0`，
 /// 否则会把两张榜的分并成一条而少算。

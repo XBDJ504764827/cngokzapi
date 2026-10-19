@@ -32,8 +32,8 @@ pub async fn claim(pool: &PgPool) -> Result<Option<(i64, String, String, i32)>, 
                SELECT id FROM sync_jobs
                WHERE status IN ('pending', 'failed') AND next_run_at <= now()
                -- 先跑全局任务（maps/servers/bans/leaderboard/recent），
-               -- 再跑逐玩家补全（player），否则玩家任务会长期饿死全局同步
-               ORDER BY (kind = 'player') ASC, next_run_at ASC
+               -- 再跑逐玩家补全（player / player_profile），否则玩家任务会长期饿死全局同步
+               ORDER BY (kind IN ('player', 'player_profile')) ASC, next_run_at ASC
                FOR UPDATE SKIP LOCKED
                LIMIT 1
            )

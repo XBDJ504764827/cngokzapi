@@ -16,5 +16,7 @@ pub const KIND_LEADERBOARD: &str = "leaderboard";
 pub const KIND_RECENT: &str = "recent";
 pub const KIND_MAP: &str = "map";
 pub const KIND_PLAYER: &str = "player";
+/// 轻量玩家档案（只拉名称/头像/国家，1 次外部请求）。
+pub const KIND_PLAYER_PROFILE: &str = "player_profile";
 pub const KIND_SERVERS: &str = "servers";
 pub const KIND_BANS: &str = "bans";

@@ -10,11 +10,11 @@ use super::{jobs, queue};
 use crate::state::AppState;
 
 /// 每轮最多认领的任务数。
-const BATCH: usize = 4;
+const BATCH: usize = 8;
 /// 同时在跑的任务数上限（共享 `SourceClient` 的限速闸门，不会打爆上游）。
-const MAX_INFLIGHT: usize = 3;
+const MAX_INFLIGHT: usize = 4;
 /// 轮询间隔。
-const TICK: Duration = Duration::from_secs(5);
+const TICK: Duration = Duration::from_secs(2);
 
 /// 定时任务周期（秒）。最新记录来自 KZTimer 广播源，60s 拉一次以保证接近实时。
 const RECENT_EVERY: u64 = 60;
@@ -149,6 +149,7 @@ async fn execute(state: &AppState, kind: &str, key: &str) -> Result<usize, jobs:
             )))),
         },
         super::KIND_PLAYER => jobs::run_player(pool, src, key).await,
+        super::KIND_PLAYER_PROFILE => jobs::run_player_profile(pool, src, key).await,
         other => Err(jobs::JobError::Db(sqlx::Error::Protocol(format!(
             "未知任务类型：{other}"
         )))),

@@ -115,10 +115,13 @@
 - 地图/服务器缩略图必须提供缺图占位（显示地图名/图标）；Hero 使用极浅的朱砂单色晕染，
   不做多色「极光」色块与荧光/科技纹理。
 
-待后端支持的能力（当前为模拟数据）：
+已接入真实数据（2026-10-19 核实）：排行榜、地图与地图详情、服务器、最新记录、封禁名单、
+玩家资料（积分/排名/等级/头像/国旗/地图进度）均读本站 PG 的真实同步数据。
+仍待后端支持的能力：
 
-- Steam OpenID 登录、实时服务器数据、玩家记录查询、地图库、
-  排行榜实时更新、玩家搜索、管理员功能（删记录、封禁玩家）。
+- Steam OpenID 真实登录（当前入口明确提示未接入，不做假登录）；
+- 管理员功能（删记录、封禁玩家）与后台审核；
+- 首页「最新公告」为运营文案，暂无上游数据源，仍为静态内容。
 
 ## 3. 技术架构
 
@@ -262,6 +265,8 @@ JSON 一律 snake_case，与前后端类型一一对应。
   `0006_player_country.sql`）、`avatar_synced_at`、`updated_at`。
 - `0007_player_pb_backfill.sql`（2026-10-19）：无表结构变更，重置 `player` 任务，
   让同步按 PB 重拉以回填「全部已完成地图」。
+- `0008_player_profile_backfill.sql`（2026-10-19）：无表结构变更，为所有缺少头像/国籍的玩家
+  入队 `player_profile` 轻量任务（每人 1 次 `GET /players/{steamid64}`）。
 - `records` 增列：`source`（`plugin`/`gokz_top`/`kztimer`）、`external_id`（UNIQUE）、
   `stage`、`tickrate`、`teleports`、`points_local`（本站口径，可空）、
   `origin_server_id`、`server_name`、`server_group`、`wr_time_ms`、`is_valid`、`updated_at`；
@@ -275,7 +280,7 @@ JSON 一律 snake_case，与前后端类型一一对应。
   maps_completed, wrs_nub, wrs_pro, records_900_plus, records_800_plus, last_played,
   source, updated_at)`：榜单汇总（上游口径 + 本站口径）。
 - 新增 `sync_jobs(kind, key, status, attempts, next_run_at, last_error, ...)`：按需回源队列
-  （`kind` = `maps`/`leaderboard`/`recent`/`map`/`player`/`servers`/`bans`）。
+  （`kind` = `maps`/`leaderboard`/`recent`/`map`/`player`/`player_profile`/`servers`/`bans`）。
 - 新增 `server_groups(id, name, custom_id)`、`server_keys(group_id, api_key, label, ...)`：
   服务器组与上报 key（§9.6 的 ingest 接收端已使用：`X-ApiKey` → `server_keys`）。
 
@@ -438,6 +443,8 @@ JSON 一律 snake_case，与前后端类型一一对应。
 - **玩家维度可懒加载**：用户查某玩家、或收到该玩家上报 → 后台拉其档案、PB 与最近成绩 → 落库计分。
   玩家 PB 按模式分页拉 `GET /records/pb?type=NUB|PRO&is_bonus=false`（每页 1000，上限 20000），
   以保证「全部已完成地图」不被最近成绩截断；旧的 `/records?steamid64=&limit=1000` 仍用于最近成绩。
+- **轻量玩家档案**：`player_profile` 任务只请求 `GET /players/{steamid64}`（名称/头像/国家），
+  用于批量回填排行榜与地图榜中缺失头像/国旗的玩家；与完整 `player` 任务分开，避免重复拉成绩。
 - **地图维度必须整图同步**：计分依赖名次，首次需要某 `(地图, 模式, 关卡)` 时，
   拉该图**全部得分记录**（实测单图单模式主关约 2800 条 / 1.2MB / 16 秒），
   之后本地即可实时排名；缓存 TTL 默认 7 天并做增量。
@@ -646,6 +653,11 @@ POST /api/v2.0/records                 X-ApiKey: <key>
   `GET /api/v1/players/{steam_id64}/maps`（已完成/未完成、分页、名称搜索）；个人资料「最近成绩」
   更名「最近完成地图」并新增「地图进度」区块（模式切换 + 已完成/未完成标签 + 24 张/页卡片），
   顶部玩家搜索框改为大号搜索卡。
+- 当前：真实数据补全（2026年10月19日，`develop`）：新增 `player_profile` 轻量同步任务（仅拉
+  `/players/{steamid64}`），迁移 `0008` 为所有缺头像/国籍的玩家入队回填；同步 worker 吞吐
+  上调（BATCH 4→8、并发 3→4、TICK 5s→2s，仍受外部 400ms 限速闸门约束）。
+  审计结果：头像 163 → 全量回填中，其余页面数据均为真实来源；83 张地图上游无制作人数据、
+  首页公告为运营文案，均非缺失的接口数据。
 - 下一步（按序）：
   1. ~~旧阶段（vanilla 原型 + 单文件后端）~~ ✅ 已归档/替换
   2. ~~数据接入落地（§9）：`sources/` + `sync_jobs` + `scoring` + `0002/0003` + `ingest`；

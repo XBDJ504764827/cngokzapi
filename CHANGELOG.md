@@ -10,6 +10,27 @@
 
 ---
 
+## 2026年10月19日 16时19分42秒 真实数据补全：全量回填玩家头像/国籍 + 同步吞吐调整
+
+- 背景：审计发现所有页面已读真实数据，但 `players` 表 3994 人中仅 163 人有头像、131 人有国籍——
+  排行榜与地图榜大量玩家退化为 DiceBear 占位图；需把缺失的真实头像/国家全部补齐。
+- 变更内容：
+  - 新增轻量同步类型 `player_profile`：只请求 GOKZ.TOP `GET /players/{steamid64}`
+    （名称/头像 hash/国家），写回后即得到 Steam CDN 真实头像与国旗，不重拉成绩。
+  - 迁移 `0008_player_profile_backfill.sql`：为所有缺头像或国籍的玩家入队该任务（约 3800 人，
+    按 400ms 限速在后台回填）。
+  - worker 吞吐上调：`BATCH` 4→8、`MAX_INFLIGHT` 3→4、`TICK` 5s→2s（外部限速闸门不变，仍礼貌回源）。
+  - 修复 `upsert_player_profile` 在无头像时写入 `NULL` 导致 `players.avatar_url NOT NULL` 报错的问题
+    （改为空串，仍保留「空值不覆盖已有头像」语义）。
+  - 队列优先级把 `player_profile` 与 `player` 归为一类，避免玩家任务饿死全局同步。
+- 涉及文件：`backend/src/modules/sync/{mod,queue,worker,jobs,repository}.rs`、
+  `backend/migrations/0008_player_profile_backfill.sql`、`PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无表结构变更（`0008` 仅入队任务）；无公开 API 变化。
+- 测试与结果（北京时间）：`cargo fmt`/`build`/`clippy -D warnings` 通过；迁移已应用并重启后端；
+  排行榜三模式 **200/200** 玩家已有真实头像；头像总数从 163 持续回填中，后台任务继续跑完；
+  8 张带旧错误的任务会在退避后重试。地图制作人 963/1046（其余 83 张 kzgo 上游无数据）、
+  首页公告为运营静态文案，均非可获取的接口数据。
+
 ## 2026年10月19日 15时14分26秒 个人资料：最近完成地图 + 全部已完成/未完成地图 + 搜索框优化
 
 - 背景：个人资料只展示最近 20 条成绩，看不到地图完成全貌；且顶级玩家旧同步只拉最近 1000 条成绩，

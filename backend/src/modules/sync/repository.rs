@@ -297,7 +297,8 @@ pub async fn upsert_player_profile(
     )
     .bind(steam_id)
     .bind(name)
-    .bind(avatar_url)
+    // players.avatar_url 为 NOT NULL DEFAULT ''：无头像时写空串（ON CONFLICT 前会校验非空）
+    .bind(avatar_url.unwrap_or(""))
     .bind(country)
     .execute(pool)
     .await?;
