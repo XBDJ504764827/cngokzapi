@@ -10,6 +10,26 @@
 
 ---
 
+## 2026年10月19日 21时31分52秒 服务器社区分类改紧凑换行 + 简写 + 归一化修正
+
+- 背景：服务器分组较多时，横向滚动会把部分分组藏在视口外；改为四列网格后又显得过大、过于整齐。
+- 变更内容：
+  - `ServersPage.vue` 分类栏改为**紧凑 chip + 自动换行**：12px 字号、`4px 9px` 内边距、
+    自然宽度（不做等宽对齐/网格），所有分组直接可见，无横向滚动。
+  - 新增 `shortCategory()` 展示简写，完整名称保留在 `title`：
+    `House of Climb → HoC`、`BadServers.net → BadServers`、`\\GiClan.net// Custom Bhop Timer → GiClan`、
+    `GOKZ128TICK → 128T`、`花花世界 上海1 → 花花世界`、`karko's crack den → karko's` 等；
+    未命中别名时取名称首词或前 9 字加省略号。
+  - `servers/category.rs` 归一化修正：改为取**最早出现**的分隔符（不再按 marker 优先级），
+    并剔除 `#B07` / `!ws` 等服务器编号/指令后缀；`AXE GOKZ #B07 | WL` → AXE、
+    `sneaK's Advanced Surf ...` → sneaK's。分类数从 25 降至 20。
+- 涉及文件：`frontend/src/features/servers/ServersPage.vue`、
+  `backend/src/modules/servers/category.rs`、`PROJECT.md`、`CHANGELOG.md`。
+- 数据库与 API 变化：无。
+- 测试与结果（北京时间）：`cargo fmt`/`build`/`clippy -D warnings`、`cargo test`（31 passed）、
+  `npm run build` 全过；Playwright 1440/980/390 实测：21 个 chip 全部可见（桌面约 2 行、
+  移动端约 6 行），无横向滚动、无报错。
+
 ## 2026年10月19日 19时34分31秒 P0 维护能力：同步健康接口 + 7 天 TTL + 全量榜单清理
 
 - 背景：实时增量已就绪，但缺监控、冷数据 TTL、掉榜行清理；且 3 个全量榜单长任务会占满

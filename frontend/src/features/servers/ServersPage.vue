@@ -23,6 +23,27 @@ const categories = computed(() => {
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh-CN'))
 })
 
+// 分类展示用简写：过长名称用常见简称或首词，完整名称保留在 title 中。
+function shortCategory(name: string): string {
+  const alias: Record<string, string> = {
+    'House of Climb': 'HoC',
+    'BadServers.net': 'BadServers',
+    '\\GiClan.net// Custom Bhop Timer': 'GiClan',
+    "karko's crack den": "karko's",
+    'La ele HNS': 'La ele',
+    'enw.kz public': 'enw.kz',
+    'rc.noob.club': 'rc.noob',
+    '花花世界 上海1': '花花世界',
+    GOKZ128TICK: '128T',
+    'Raging Platoon': 'Raging',
+    "Kiwi's Club": "Kiwi's",
+  }
+  if (alias[name]) return alias[name]
+  if (name.length <= 10) return name
+  const first = name.split(/\s+/)[0]
+  return first.length >= 3 ? first : `${name.slice(0, 9)}…`
+}
+
 // 上游下线某社区后自动回到「全部」，避免停在空筛选
 watch(categories, (list) => {
   if (activeCategory.value && !list.some((c) => c.name === activeCategory.value)) {
@@ -117,7 +138,7 @@ function region(server: ServerEntry): string {
       :title="c.name"
       @click="activeCategory = c.name"
     >
-      <span class="cat-name">{{ c.name }}</span>
+      <span class="cat-name">{{ shortCategory(c.name) }}</span>
       <span class="cat-count">{{ c.count }}</span>
     </button>
   </div>
@@ -237,44 +258,40 @@ function region(server: ServerEntry): string {
 </template>
 
 <style scoped>
-/* 社区分类筛选：横向滚动，计数倒序 */
+/* 社区分类筛选：小号 chip 自动换行，所有分组可见；不做等宽对齐 */
 .category-bar {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
   margin-bottom: 14px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-  scrollbar-width: none;
-}
-
-.category-bar::-webkit-scrollbar {
-  display: none;
 }
 
 .cat-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  flex-shrink: 0;
-  max-width: 200px;
-  padding: 5px 12px;
+  max-width: 100%;
+  padding: 4px 9px;
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: 999px;
   font-family: var(--font-base);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
+  line-height: 1.4;
   color: var(--text-secondary);
   cursor: pointer;
   transition:
     border-color 0.15s ease,
     background-color 0.15s ease,
-    color 0.15s ease;
+    color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .cat-chip:hover {
   border-color: var(--accent);
   color: var(--text-primary);
+  box-shadow: var(--shadow-xs);
 }
 
 .cat-chip.active {
@@ -293,10 +310,10 @@ function region(server: ServerEntry): string {
 
 .cat-count {
   flex-shrink: 0;
-  padding: 0 7px;
+  padding: 0 5px;
   border-radius: 999px;
   background-color: var(--bg-subtle);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   color: var(--text-muted);
 }

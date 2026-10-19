@@ -21,21 +21,39 @@ pub fn community(name: &str, group_name: Option<&str>) -> String {
     }
 }
 
-/// 从服务器名推导社区名：优先 `【】` / `[]` 前缀，其次取常见分隔符前的前缀。
+/// 从服务器名推导社区名：优先 `【】` / `[]` 前缀，其次取**最早出现**的分隔符前的前缀。
+/// 不再按 marker 优先级命中（否则 `AXE GOKZ #B07 | WL` 会先被 ` |` 切开）。
 fn derive_from_name(name: &str) -> String {
     if let Some(inner) = bracket_prefix(name) {
         return inner;
     }
-    // 顺序有意义：先匹配更"长/更具体"的分隔符，避免把品牌切开
     const MARKERS: &[&str] = &[
-        "  ", " 攀岩", " |", " GOKZ", "|", " #", " -", " KZ", " 服", "服",
+        "  ",
+        " 攀岩",
+        " |",
+        "|",
+        " GOKZ",
+        " KZ",
+        " Surf",
+        " Advanced",
+        " Tier",
+        " #",
+        " -",
+        " 服",
+        "服",
     ];
+    let mut earliest: Option<usize> = None;
     for marker in MARKERS {
         if let Some(i) = name.find(marker) {
-            let prefix = name[..i].trim();
-            if !prefix.is_empty() {
-                return prefix.to_string();
+            if i > 0 && earliest.map_or(true, |b| i < b) {
+                earliest = Some(i);
             }
+        }
+    }
+    if let Some(i) = earliest {
+        let prefix = name[..i].trim();
+        if !prefix.is_empty() {
+            return prefix.to_string();
         }
     }
     name.trim().to_string()
@@ -63,7 +81,9 @@ fn normalize(s: &str) -> String {
     while let Some(last) = tokens.last() {
         let generic = GENERIC_SUFFIX.iter().any(|g| last.eq_ignore_ascii_case(g));
         let numbered = last.chars().all(|c| c.is_ascii_digit());
-        if generic || numbered {
+        // 服务器编号 / 指令后缀：`#B07`、`#01`、`!ws`、`!knife`
+        let server_code = last.starts_with('#') || last.starts_with('!');
+        if generic || numbered || server_code {
             tokens.pop();
         } else {
             break;
@@ -110,6 +130,16 @@ mod tests {
         );
         assert_eq!(community("Celerity - Pre/Nopre KZ", None), "Celerity");
         assert_eq!(community("sneaK's GOKZ Climb !ws|!knife", None), "sneaK's");
+        assert_eq!(community("AXE GOKZ #B07 | WL", None), "AXE");
+        assert_eq!(community("AXE GOKZ #B08 | WL", None), "AXE");
+        assert_eq!(
+            community("sneaK's Advanced Surf Tier 3-6|!ws|!knife", None),
+            "sneaK's"
+        );
+        assert_eq!(
+            community("sneaK's KZ Climb !ws|!knife|!gloves", None),
+            "sneaK's"
+        );
     }
 
     #[test]
